@@ -87,20 +87,27 @@ private const string FragmentShaderSource = """
     public Rectangle viewport;
     public readonly OrbitCamera OrbitCamera;
     public readonly Material Material;
-    public readonly Renderer<Vertex> Renderer;
-    public Matrix4x4 Model {get;} = Matrix4x4.Identity;
+    public readonly Renderer<Vertex> CarRenderer;
+    public readonly Renderer<Vertex> TrackRenderer;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
 
     public ModelViewer()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
-        Renderer = Graphics.CreateRenderer<Vertex>();
-        var modellingMesh = new ModellingMesh();
-        modellingMesh.Cube();
-        modellingMesh.Extrude(0.2f);
-        modellingMesh.Scale(0.5f);
-        Renderer.SetVertices(modellingMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+        TrackRenderer = Graphics.CreateRenderer<Vertex>();
+        var trackMesh = Track.Create(2, Color32.Black, [
+            TrackCommand.Forward(10),
+            TrackCommand.Left(5, 8),
+            TrackCommand.Forward(5),
+            TrackCommand.Right(40, 4)
+        ]);
+        TrackRenderer.SetVertices(trackMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+
+        CarRenderer = Graphics.CreateRenderer<Vertex>();
+        var carMesh = Car.Create();
+        CarRenderer.SetVertices(carMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+
         OrbitCamera = new OrbitCamera();
     }
 
@@ -126,16 +133,20 @@ private const string FragmentShaderSource = """
         Material.Use();
         Material.SetVector3("lightPos", new Vector3(20,20,20));
         Material.SetVector3("lightColor", new Vector3(1,1,1));
-        Material.SetMatrix4("model", Model);
+        Material.SetMatrix4("model", Matrix4x4.Identity);
         Material.SetMatrix4("view", View);
         Material.SetMatrix4("projection", Projection);
-        Renderer.Render();
+        TrackRenderer.Render();
+
+        Material.SetMatrix4("model", Matrix4x4.Identity);
+        CarRenderer.Render();
     }
 
     public void Delete()
     {
         Material.Delete();
-        Renderer.Delete();
+        TrackRenderer.Delete();
+        CarRenderer.Delete();
     }
 }
 
@@ -181,7 +192,7 @@ internal static class Program
 
     private static void OnMouseMove(Vector2 mousePosition, Vector2 mouseDelta)
     {
-        if (Graphics.IsMouseButtonDown(MouseButton.Right))
+        if (Graphics.IsMouseButtonDown(MouseButton.Left))
         {
             _modelViewer.OrbitCamera.Rotate(mouseDelta);
         }
