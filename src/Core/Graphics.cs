@@ -5,6 +5,7 @@ using Silk.NET.Maths;
 using Silk.NET.Input;
 using System.Runtime.InteropServices;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 public class Material
 {
@@ -317,43 +318,125 @@ public class Texture
     }
 }
 
+public static class Input
+{
+    static Vector2 _mousePosition;
+    static Vector2 _mouseDelta;
+    static List<MouseButton> _mouseDown = [];
+    static List<MouseButton> _mousePressed = [];
+    static List<Key> _keyDown = [];
+    static List<Key> _keyPressed = [];
+
+    public static Vector2 MousePosition => _mousePosition;
+
+    public static Vector2 MouseDelta => _mouseDelta;
+
+    private static Vector2 GetFramebufferMousePosition(Vector2 mousePosition)
+    {
+        var windowSize = Graphics.WindowSize;
+        var framebufferSize = Graphics.FrameBufferSize;
+
+        float scaleX = framebufferSize.X / (float)windowSize.X;
+        float scaleY = framebufferSize.Y / (float)windowSize.Y;
+
+        return new Vector2(
+            mousePosition.X * scaleX,
+            mousePosition.Y * scaleY
+        );
+    }
+
+    public static bool KeyDown(Key key)
+    {
+        return _keyDown.Contains(key);
+    }
+
+    public static bool KeyPressed(Key key)
+    {
+        return _keyPressed.Contains(key);
+    }
+
+    public static bool MouseDown(MouseButton mouseButton)
+    {
+        return _mouseDown.Contains(mouseButton);
+    }
+
+    public static bool MousePressed(MouseButton mouseButton)
+    {
+        return _mousePressed.Contains(mouseButton);
+    }
+
+    private static void SetKeyDown(IKeyboard keyboard, Key key, int scancode)
+    {
+        _keyPressed.Add(key);
+        _keyDown.Add(key);
+    }
+
+    private static void SetKeyUp(IKeyboard keyboard, Key key, int scancode)
+    {
+        _keyDown.Remove(key);
+    }
+
+    private static void SetMouseDown(IMouse mouse, MouseButton mouseButton)
+    {
+        _mousePressed.Add(mouseButton);
+        _mouseDown.Add(mouseButton);
+    }
+
+    private static void SetMouseUp(IMouse mouse, MouseButton mouseButton)
+    {
+        _mouseDown.Remove(mouseButton);
+    }
+
+    private static void SetMouseMove(IMouse mouse, Vector2 mousePosition)
+    {
+        var mousePos = GetFramebufferMousePosition(mousePosition);
+        _mouseDelta += mousePos - _mousePosition;
+        _mousePosition = mousePos;
+    }
+
+    public static void Init(IWindow _window)
+    {
+        var input = _window.CreateInput();
+
+        foreach(var keyboard in input.Keyboards)
+        {
+            keyboard.KeyDown += SetKeyDown;
+            keyboard.KeyUp += SetKeyUp;
+        }
+
+        foreach (IMouse mouse in input.Mice)
+        {
+            mouse.MouseDown += SetMouseDown;
+            mouse.MouseUp += SetMouseUp;
+            mouse.MouseMove += SetMouseMove;
+        }
+    }
+
+    public static void EndOfFrame()
+    {
+        _mouseDelta = Vector2.Zero;
+        _keyPressed.Clear();
+        _mousePressed.Clear();
+    }
+}
+
 public static class Graphics
 {
     private static IWindow _window = null!;
     private static GL _gl = null!;
     private static Action onLoad = null!;
-    private static Action<char> onKeyChar = null!;
-    private static Action<Key, int> onKeyDown = null!;
-    private static Action<Vector2, Vector2> onMouseMove = null!;
-    private static Action<MouseButton> onMouseDown = null!;
-    private static Action<MouseButton> onMouseUp = null!;
-    private static Action<ScrollWheel> onMouseScroll = null!;
-    private static Vector2 mousePosition;
-    private static Vector2 lastMousePosition;
+    private static Action<float> onRender = null!;
     private static Action onClose = null!;
-    private static List<MouseButton> mouseButtons = [];
 
     public static void Init(
         string title,
         Action onLoad, 
-        Action<double> onRender,
-        Action<Vector2D<int>> onFrameBufferResize,
-        Action<char> onKeyChar,
-        Action<Key, int> onKeyDown,
-        Action<Vector2, Vector2> onMouseMove,
-        Action<MouseButton> onMouseDown,
-        Action<MouseButton> onMouseUp,
-        Action<ScrollWheel> onMouseScroll,
+        Action<float> onRender,
         Action onClose)
     {
         Graphics.onLoad = onLoad;
-        Graphics.onKeyChar = onKeyChar;
-        Graphics.onKeyDown = onKeyDown;
         Graphics.onClose = onClose;
-        Graphics.onMouseMove = onMouseMove;
-        Graphics.onMouseDown = onMouseDown;
-        Graphics.onMouseUp = onMouseUp;
-        Graphics.onMouseScroll = onMouseScroll;
+        Graphics.onRender = onRender;
 
         var options = WindowOptions.Default;
         options.Title = title;
@@ -370,19 +453,14 @@ public static class Graphics
         _window = Window.Create(options);
 
         _window.Load += OnLoad;
-        _window.Render += onRender;
-        _window.FramebufferResize += onFrameBufferResize;
+        _window.Render += OnRender;
         _window.Closing += OnClose;
 
         _window.Run();
     }
 
-    public static bool IsMouseButtonDown(MouseButton mouseButton)
-    {
-        return mouseButtons.Contains(mouseButton);
-    }
-
-    public static Vector2D<int> WindowSize => _window.FramebufferSize;
+    public static Vector2D<int> WindowSize => _window.Size;
+    public static Vector2D<int> FrameBufferSize => _window.FramebufferSize;
 
     public static void ClearColor(float r, float g, float b, float a)
     {
@@ -421,58 +499,19 @@ public static class Graphics
 
     public static double Time => _window.Time;
 
-    private static Vector2 GetFramebufferMousePosition(Vector2 mousePosition)
-    {
-        var windowSize = _window.Size;
-        var framebufferSize = _window.FramebufferSize;
-
-        float scaleX = framebufferSize.X / (float)windowSize.X;
-        float scaleY = framebufferSize.Y / (float)windowSize.Y;
-
-        return new Vector2(
-            mousePosition.X * scaleX,
-            mousePosition.Y * scaleY
-        );
-    }
-
     private static void OnLoad()
     {
         _gl = _window.CreateOpenGL();
-        var input = _window.CreateInput();
-
-        foreach(var keyboard in input.Keyboards)
-        {
-            keyboard.KeyChar += (k, c) => onKeyChar(c);
-            keyboard.KeyDown += (k, key, s) => onKeyDown(key, s);
-        }
-
-        foreach (IMouse mouse in input.Mice)
-        {
-            mouse.MouseMove += (m, wp) =>
-            {
-                var p = GetFramebufferMousePosition(wp);
-                lastMousePosition = mousePosition;
-                mousePosition = p;
-                onMouseMove(p, mousePosition - lastMousePosition);
-            };
-            mouse.MouseDown += (m, b) => 
-            {
-                mouseButtons.Add(b);
-                onMouseDown(b);
-            };
-            mouse.MouseUp += (m, b) => {
-                onMouseUp(b);
-                mouseButtons.Remove(b);
-            };
-            mouse.Scroll += (m, s) => onMouseScroll(s);
-            mousePosition = GetFramebufferMousePosition(mouse.Position);
-            lastMousePosition = mousePosition;
-        }
+        Input.Init(_window);
         TextRenderer.OnLoad();
         onLoad();
     }
 
-    public static Vector2 MousePosition => mousePosition;
+    private static void OnRender(double deltaTime)
+    {
+        onRender((float)deltaTime);
+        Input.EndOfFrame();
+    }
 
     public static void Close()
     {

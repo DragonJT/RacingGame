@@ -29,7 +29,7 @@ public readonly struct Vertex
     }
 }
 
-class ModelViewer
+public class World
 {
     private const string VertexShaderSource = """
     #version 330 core
@@ -85,41 +85,39 @@ private const string FragmentShaderSource = """
     """;
 
     public Rectangle viewport;
-    public readonly OrbitCamera OrbitCamera;
+    public readonly FollowCamera FollowCamera;
     public readonly Material Material;
     public readonly Renderer<Vertex> CarRenderer;
     public readonly Renderer<Vertex> TrackRenderer;
+    public readonly CarController CarController;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
 
-    public ModelViewer()
+    public World()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
         TrackRenderer = Graphics.CreateRenderer<Vertex>();
-        var trackMesh = Track.Create(2, Color32.Black, [
-            TrackCommand.Forward(10),
-            TrackCommand.Left(5, 8),
-            TrackCommand.Forward(5),
-            TrackCommand.Right(40, 4)
-        ]);
+        var randomTrack = RandomTrack.Create(25, minStraight:3, maxStraight:8, maxTurnAngle:90);
+        var trackMesh = Track.Create(8, Color32.Gray, randomTrack);
         TrackRenderer.SetVertices(trackMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
         var carMesh = Car.Create();
         CarRenderer.SetVertices(carMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
-        OrbitCamera = new OrbitCamera();
+        CarController = new CarController();
+        FollowCamera = new FollowCamera();
     }
 
     public void Render()
     {
-        var windowSize = Graphics.WindowSize;
+        var windowSize = Graphics.FrameBufferSize;
         Graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         viewport = new Rectangle(0, 0, windowSize.X, windowSize.Y);
         Graphics.Viewport(viewport);
         Graphics.Enable(EnableCap.DepthTest);
 
-        View = OrbitCamera.GetViewMatrix();
+        View = FollowCamera.GetViewMatrix(CarController);
 
         float aspect = windowSize.X/ (float)windowSize.Y;
 
@@ -138,8 +136,33 @@ private const string FragmentShaderSource = """
         Material.SetMatrix4("projection", Projection);
         TrackRenderer.Render();
 
-        Material.SetMatrix4("model", Matrix4x4.Identity);
+        Material.SetMatrix4("model", CarController.ModelMatrix);
         CarRenderer.Render();
+    }
+
+    public void Update(float deltaTime)
+    {
+        float throttle = 0f;
+        float brake = 0f;
+        float steer = 0f;
+
+        if (Input.KeyDown(Key.Up))
+            throttle = 1f;
+
+        if (Input.KeyDown(Key.Down))
+            brake = 1f;
+
+        if (Input.KeyDown(Key.Left))
+            steer = 1f;
+
+        if (Input.KeyDown(Key.Right))
+            steer = -1f;
+
+        if (Input.KeyPressed(Key.Escape))
+        {
+            Graphics.Close();
+        }
+        CarController.Update(deltaTime, throttle, brake, steer);
     }
 
     public void Delete()
@@ -152,22 +175,11 @@ private const string FragmentShaderSource = """
 
 internal static class Program
 { 
-    static ModelViewer _modelViewer = null!;
+    static World _modelViewer = null!;
 
     private static void Main()
     {
-        Graphics.Init(
-            "GameEngine", 
-            OnLoad, 
-            OnRender, 
-            OnFramebufferResize, 
-            OnKeyChar, 
-            OnKeyDown, 
-            OnMouseMove,
-            OnMouseDown,
-            OnMouseUp,
-            OnMouseScroll,
-            OnClose);
+        Graphics.Init("GameEngine", OnLoad, OnRender, OnClose);
     }
 
     private static void OnLoad()
@@ -176,43 +188,11 @@ internal static class Program
         _modelViewer = new();
     }
 
-    private static void OnRender(double deltaTime)
+    private static void OnRender(float deltaTime)
     {
+        _modelViewer.Update(deltaTime);
         _modelViewer.Render();
         TextRenderer.Render();
-    }
-
-    private static void OnKeyChar(char c)
-    {
-    }
-
-    private static void OnKeyDown(Key key, int scancode)
-    {
-    }
-
-    private static void OnMouseMove(Vector2 mousePosition, Vector2 mouseDelta)
-    {
-        if (Graphics.IsMouseButtonDown(MouseButton.Left))
-        {
-            _modelViewer.OrbitCamera.Rotate(mouseDelta);
-        }
-    }
-
-    private static void OnMouseDown(MouseButton mouseButton)
-    {
-    }
-
-    private static void OnMouseUp(MouseButton mouseButton)
-    {
-        
-    }
-
-    private static void OnMouseScroll(ScrollWheel scrollWheel)
-    {
-    }
-
-    private static void OnFramebufferResize(Vector2D<int> size)
-    {
     }
 
     private static void OnClose()

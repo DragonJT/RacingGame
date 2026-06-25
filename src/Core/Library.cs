@@ -23,6 +23,7 @@ public readonly struct Color32
     public static Color32 Blue => new(0, 0, 255, 255);
     public static Color32 Orange => new(255, 150, 0, 255);
     public static Color32 SkyBlue => new(0, 150, 255, 255);
+    public static Color32 Gray => new(100, 100, 100, 255);
 }
 
 public struct Rectangle
