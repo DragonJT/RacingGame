@@ -3,15 +3,34 @@ using System.Numerics;
 public sealed class CarController
 {
     public Vector3 Position { get; private set; } = new(0, 0.15f, 0);
-    public float HeadingRadians { get; private set; }
-    public float Speed { get; private set; }
+    public Vector3 Velocity { get; private set; }
 
-    public float Acceleration = 8.0f;
-    public float BrakeAcceleration = 14.0f;
-    public float Friction = 2.0f;
-    public float MaxForwardSpeed = 30.0f;
-    public float MaxReverseSpeed = -6.0f;
-    public float TurnSpeed = 2.5f;
+    public float HeadingRadians { get; private set; }
+
+    public float Speed => Vector3.Dot(Velocity, GetForward());
+    public bool IsDrifting { get; private set; }
+
+    public float Acceleration = 18.0f;
+    public float BrakeAcceleration = 20.0f;
+
+    public float MaxForwardSpeed = 38.0f;
+    public float MaxReverseSpeed = -8.0f;
+
+    public float TurnSpeed = 2.8f;
+
+    public float Grip = 5f;
+    public float DriftGrip = 1f;
+
+    public float Drag = 0.35f;
+    public float RollingResistance = 1.5f;
+
+    public float DriftStartSpeed = 10.0f;
+    public float DriftSteerThreshold = 0.75f;
+    public float DriftHoldTime = 0.35f;
+    public float DriftStopSpeed = 8.0f;
+    public float DriftRecoveryGrip = 4.0f;
+
+    private float sharpTurnTimer;
 
     public Matrix4x4 ModelMatrix
     {
@@ -23,56 +42,139 @@ public sealed class CarController
         }
     }
 
-    public void Update(float deltaTime, float throttle, float brake, float steer)
+    public void Update(
+        float deltaTime,
+        float throttle,
+        float brake,
+        float steer)
     {
         throttle = Math.Clamp(throttle, 0f, 1f);
         brake = Math.Clamp(brake, 0f, 1f);
         steer = Math.Clamp(steer, -1f, 1f);
 
-        if (throttle > 0)
-        {
-            Speed += throttle * Acceleration * deltaTime;
-        }
-
-        if (brake > 0)
-        {
-            Speed -= brake * BrakeAcceleration * deltaTime;
-        }
-
-        if (throttle == 0 && brake == 0)
-        {
-            ApplyFriction(deltaTime);
-        }
-
-        Speed = Math.Clamp(Speed, MaxReverseSpeed, MaxForwardSpeed);
-
-        float speedPercent = MathF.Abs(Speed) / MaxForwardSpeed;
-
-        if (MathF.Abs(Speed) > 0.05f)
-        {
-            HeadingRadians += steer * TurnSpeed * speedPercent * deltaTime;
-        }
+        UpdateDriftState(deltaTime, steer);
 
         Vector3 forward = GetForward();
 
-        Position += forward * Speed * deltaTime;
+        if (throttle > 0f)
+        {
+            Velocity += forward * Acceleration * throttle * deltaTime;
+        }
+
+        if (brake > 0f)
+        {
+            Velocity -= forward * BrakeAcceleration * brake * deltaTime;
+        }
+
+        ClampForwardSpeed();
+
+        float speedAmount = Velocity.Length();
+        float speedPercent = Math.Clamp(speedAmount / MaxForwardSpeed, 0f, 1f);
+
+        if (speedAmount > 0.1f)
+        {
+            float forwardSpeed = Vector3.Dot(Velocity, forward);
+            float reverseMultiplier = forwardSpeed >= 0f ? 1f : -1f;
+            float driftTurnMultiplier = IsDrifting ? 1.45f : 1.0f;
+
+            HeadingRadians +=
+                steer *
+                TurnSpeed *
+                driftTurnMultiplier *
+                speedPercent *
+                reverseMultiplier *
+                deltaTime;
+        }
+
+        ApplySideGrip(deltaTime);
+        ApplyDrag(deltaTime);
+
+        Position += Velocity * deltaTime;
     }
 
-    private void ApplyFriction(float deltaTime)
+    private void UpdateDriftState(float deltaTime, float steer)
     {
-        if (Speed > 0)
-        {
-            Speed -= Friction * deltaTime;
+        float speedAmount = Velocity.Length();
 
-            if (Speed < 0)
-                Speed = 0;
+        bool fastEnough = speedAmount >= DriftStartSpeed;
+        bool steeringHard = MathF.Abs(steer) >= DriftSteerThreshold;
+
+        if (fastEnough && steeringHard)
+        {
+            sharpTurnTimer += deltaTime;
         }
-        else if (Speed < 0)
+        else
         {
-            Speed += Friction * deltaTime;
+            sharpTurnTimer -= deltaTime * 2.0f;
+        }
 
-            if (Speed > 0)
-                Speed = 0;
+        sharpTurnTimer = Math.Clamp(sharpTurnTimer, 0f, DriftHoldTime);
+
+        if (!IsDrifting)
+        {
+            if (sharpTurnTimer >= DriftHoldTime)
+            {
+                IsDrifting = true;
+            }
+        }
+        else
+        {
+            bool tooSlow = speedAmount < DriftStopSpeed;
+            bool stoppedSteering = MathF.Abs(steer) < 0.25f;
+
+            if (tooSlow || stoppedSteering)
+            {
+                IsDrifting = false;
+            }
+        }
+    }
+
+    private void ClampForwardSpeed()
+    {
+        Vector3 forward = GetForward();
+        float forwardSpeed = Vector3.Dot(Velocity, forward);
+
+        if (forwardSpeed > MaxForwardSpeed)
+        {
+            Velocity += forward * (MaxForwardSpeed - forwardSpeed);
+        }
+        else if (forwardSpeed < MaxReverseSpeed)
+        {
+            Velocity += forward * (MaxReverseSpeed - forwardSpeed);
+        }
+    }
+
+    private void ApplySideGrip(float deltaTime)
+    {
+        Vector3 right = GetRight();
+
+        float sideSpeed = Vector3.Dot(Velocity, right);
+
+        float grip = IsDrifting ? DriftGrip : Grip;
+
+        Vector3 sideVelocity = right * sideSpeed;
+
+        Velocity -= sideVelocity * grip * deltaTime;
+    }
+
+    private void ApplyDrag(float deltaTime)
+    {
+        float speed = Velocity.Length();
+
+        if (speed < 0.01f)
+        {
+            Velocity = Vector3.Zero;
+            return;
+        }
+
+        Vector3 direction = Vector3.Normalize(Velocity);
+
+        Velocity -= direction * RollingResistance * deltaTime;
+        Velocity -= Velocity * Drag * deltaTime;
+
+        if (Vector3.Dot(Velocity, direction) < 0f)
+        {
+            Velocity = Vector3.Zero;
         }
     }
 
@@ -82,6 +184,17 @@ public sealed class CarController
             MathF.Sin(HeadingRadians),
             0,
             MathF.Cos(HeadingRadians)
+        );
+    }
+
+    public Vector3 GetRight()
+    {
+        Vector3 forward = GetForward();
+
+        return new Vector3(
+            forward.Z,
+            0,
+            -forward.X
         );
     }
 }

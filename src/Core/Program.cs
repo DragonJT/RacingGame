@@ -97,7 +97,7 @@ private const string FragmentShaderSource = """
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
         TrackRenderer = Graphics.CreateRenderer<Vertex>();
-        var randomTrack = RandomTrack.Create(25, minStraight:3, maxStraight:8, maxTurnAngle:90);
+        var randomTrack = RandomTrack.Create(100, minStraight:3, maxStraight:8, maxTurnAngle:90);
         var trackMesh = Track.Create(8, Color32.Gray, randomTrack);
         TrackRenderer.SetVertices(trackMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
