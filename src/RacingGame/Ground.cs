@@ -1,11 +1,11 @@
 using System.Numerics;
 
-public sealed class RoadHeight
+public sealed class Ground
 {
     private readonly Terrain terrain;
     private readonly List<ModellingFace> faces;
 
-    public RoadHeight(Terrain terrain, ModellingMesh roadMesh)
+    public Ground(Terrain terrain, ModellingMesh roadMesh)
     {
         this.terrain = terrain;
         faces = roadMesh.Faces;
@@ -20,7 +20,7 @@ public sealed class RoadHeight
         return terrain.GetHeight(x, z);
     }
 
-    public bool TryGetHeight(float x, float z, out float height)
+    private bool TryGetHeight(float x, float z, out float height)
     {
         Vector2 point = new(x, z);
 

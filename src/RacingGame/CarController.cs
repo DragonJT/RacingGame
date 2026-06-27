@@ -29,20 +29,33 @@ public sealed class CarController
     public float DriftHoldTime = 0.35f;
     public float DriftStopSpeed = 8.0f;
     public float DriftRecoveryGrip = 4.0f;
-
     private float sharpTurnTimer;
+
+    public float WheelBase = 2.4f;
+    public float TrackWidth = 1.4f;
+    public float GroundOffset = 0.35f;
+
+    public float VerticalVelocity;
+    public float Gravity = 20.0f;
+
+    public bool IsGrounded { get; private set; }
+
+    private float pitchRadians;
+    private float rollRadians;
 
     public Matrix4x4 ModelMatrix
     {
         get
         {
             return
+                Matrix4x4.CreateRotationX(pitchRadians) *
+                Matrix4x4.CreateRotationZ(rollRadians) *
                 Matrix4x4.CreateRotationY(HeadingRadians) *
                 Matrix4x4.CreateTranslation(Position);
         }
     }
-
     public void Update(
+        Ground ground,
         float deltaTime,
         float throttle,
         float brake,
@@ -90,6 +103,7 @@ public sealed class CarController
         ApplyDrag(deltaTime);
 
         Position += Velocity * deltaTime;
+        UpdateGrounding(deltaTime, ground);
     }
 
     private void UpdateDriftState(float deltaTime, float steer)
@@ -198,9 +212,66 @@ public sealed class CarController
         );
     }
 
-    public void FollowHeight(RoadHeight roadHeight)
+    private void UpdateGrounding(float deltaTime, Ground ground)
     {
-        var groundY = roadHeight.GetHeight(Position.X, Position.Z);
-        Position = new Vector3(Position.X, groundY + 0.25f, Position.Z);
+        Vector3 forward = GetForward();
+        Vector3 right = GetRight();
+
+        float halfWheelBase = WheelBase * 0.5f;
+        float halfTrackWidth = TrackWidth * 0.5f;
+
+        Vector3 frontLeft =
+            Position + forward * halfWheelBase - right * halfTrackWidth;
+
+        Vector3 frontRight =
+            Position + forward * halfWheelBase + right * halfTrackWidth;
+
+        Vector3 rearLeft =
+            Position - forward * halfWheelBase - right * halfTrackWidth;
+
+        Vector3 rearRight =
+            Position - forward * halfWheelBase + right * halfTrackWidth;
+
+        float hFL = ground.GetHeight(frontLeft.X, frontLeft.Z);
+        float hFR = ground.GetHeight(frontRight.X, frontRight.Z);
+        float hRL = ground.GetHeight(rearLeft.X, rearLeft.Z);
+        float hRR = ground.GetHeight(rearRight.X, rearRight.Z);
+
+        float frontHeight = (hFL + hFR) * 0.5f;
+        float rearHeight = (hRL + hRR) * 0.5f;
+        float leftHeight = (hFL + hRL) * 0.5f;
+        float rightHeight = (hFR + hRR) * 0.5f;
+
+        pitchRadians = MathF.Atan2(rearHeight - frontHeight, WheelBase);
+        rollRadians = MathF.Atan2(leftHeight - rightHeight, TrackWidth);
+
+        float averageGroundHeight =
+            (hFL + hFR + hRL + hRR) * 0.25f;
+
+        float targetY = averageGroundHeight + GroundOffset;
+
+        if (Position.Y <= targetY)
+        {
+            Position = new Vector3(Position.X, targetY, Position.Z);
+            VerticalVelocity = 0f;
+            IsGrounded = true;
+        }
+        else
+        {
+            VerticalVelocity -= Gravity * deltaTime;
+
+            Position += new Vector3(0, VerticalVelocity * deltaTime, 0);
+
+            if (Position.Y <= targetY)
+            {
+                Position = new Vector3(Position.X, targetY, Position.Z);
+                VerticalVelocity = 0f;
+                IsGrounded = true;
+            }
+            else
+            {
+                IsGrounded = false;
+            }
+        }
     }
 }

@@ -5,7 +5,9 @@ public sealed class FollowCamera
     public Vector3 Offset = new(0, 3.0f, -6.0f);
     public Vector3 LookAtOffset = new(0, 1.0f, 0);
 
-    public Matrix4x4 GetViewMatrix(CarController car)
+    public float MinimumHeightAboveGround = 1.5f;
+
+    public Matrix4x4 GetViewMatrix(CarController car, Ground ground)
     {
         Vector3 carForward = car.GetForward();
 
@@ -20,6 +22,13 @@ public sealed class FollowCamera
             carRight * Offset.X +
             Vector3.UnitY * Offset.Y -
             carForward * MathF.Abs(Offset.Z);
+
+        float minimumCameraY = ground.GetHeight(cameraPosition.X, cameraPosition.Z) + MinimumHeightAboveGround;
+
+        if (cameraPosition.Y < minimumCameraY)
+        {
+            cameraPosition.Y = minimumCameraY;
+        }
 
         Vector3 target = car.Position + LookAtOffset;
 

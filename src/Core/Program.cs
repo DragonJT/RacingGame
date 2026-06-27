@@ -93,7 +93,7 @@ private const string FragmentShaderSource = """
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
     public readonly Terrain Terrain;
-    private readonly RoadHeight roadHeight;
+    private readonly Ground ground;
 
     public World()
     {
@@ -107,7 +107,7 @@ private const string FragmentShaderSource = """
 
         var terrainMesh = Terrain.GenerateMesh(new RoadMask(track.BuildTrackCenterline(), 32));
         terrainMesh.AddMesh(trackMesh);
-        roadHeight = new (Terrain, trackMesh);
+        ground = new (Terrain, trackMesh);
         TrackRenderer.SetVertices(terrainMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
@@ -126,7 +126,7 @@ private const string FragmentShaderSource = """
         Graphics.Viewport(viewport);
         Graphics.Enable(EnableCap.DepthTest);
 
-        View = FollowCamera.GetViewMatrix(CarController);
+        View = FollowCamera.GetViewMatrix(CarController, ground);
 
         float aspect = windowSize.X/ (float)windowSize.Y;
 
@@ -171,8 +171,7 @@ private const string FragmentShaderSource = """
         {
             Graphics.Close();
         }
-        CarController.Update(deltaTime, throttle, brake, steer);
-        CarController.FollowHeight(roadHeight);
+        CarController.Update(ground, deltaTime, throttle, brake, steer);
     }
 
     public void Delete()
