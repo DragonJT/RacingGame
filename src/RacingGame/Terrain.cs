@@ -2,43 +2,34 @@ using System.Numerics;
 
 public sealed class Terrain
 {
-    private readonly int cellsX;
-    private readonly int cellsZ;
+    private readonly int cells;
     private readonly float cellSize;
-    private readonly float halfWidth;
-    private readonly float halfDepth;
-
-    private readonly float heightScale;
-    private readonly int seed;
+    private readonly float halfSize;
+    public float Size => cells * cellSize;
 
     private readonly float[,] heights;
 
     public Terrain(
-        int cellsX,
-        int cellsZ,
+        int cells,
         float cellSize,
         float heightScale,
         int seed)
     {
-        this.cellsX = cellsX;
-        this.cellsZ = cellsZ;
+        this.cells = cells;
         this.cellSize = cellSize;
 
-        halfWidth = cellsX * cellSize * 0.5f;
-        halfDepth = cellsZ * cellSize * 0.5f;
+        halfSize = cells * cellSize * 0.5f;
 
-        this.heightScale = heightScale;
-        this.seed = seed;
-        heights = new float[cellsX + 1, cellsZ + 1];
+        heights = new float[cells + 1, cells + 1];
 
         SmoothNoise noise = new(seed);
 
-        for (int z = 0; z <= cellsZ; z++)
+        for (int z = 0; z <= cells; z++)
         {
-            for (int x = 0; x <= cellsX; x++)
+            for (int x = 0; x <= cells; x++)
             {
-                float worldX = x * cellSize - halfWidth;
-                float worldZ = z * cellSize - halfDepth;
+                float worldX = x * cellSize - halfSize;
+                float worldZ = z * cellSize - halfSize;
 
                 float height = GetGeneratedHeight(worldX, worldZ, noise, heightScale);
 
@@ -50,17 +41,17 @@ public sealed class Terrain
     public ModellingMesh GenerateMesh(RoadMask roadMask)
     {
         ModellingMesh mesh = new();
-        ModellingVertex[,] vertices = new ModellingVertex[cellsX + 1, cellsZ + 1];
+        ModellingVertex[,] vertices = new ModellingVertex[cells + 1, cells + 1];
 
-        for (int z = 0; z <= cellsZ; z++)
+        for (int z = 0; z <= cells; z++)
         {
-            for (int x = 0; x <= cellsX; x++)
+            for (int x = 0; x <= cells; x++)
             {
-                float worldX = x * cellSize - halfWidth;
-                float worldZ = z * cellSize - halfDepth;
+                float worldX = x * cellSize - halfSize;
+                float worldZ = z * cellSize - halfSize;
 
                 var offset = 0;
-                if (roadMask.IsUnderRoad(worldX, worldZ))
+                if (roadMask.IsOnRoad(worldX, worldZ))
                 {
                     offset = -5;
                 }
@@ -68,9 +59,9 @@ public sealed class Terrain
             }
         }
 
-        for (int z = 0; z < cellsZ; z++)
+        for (int z = 0; z < cells; z++)
         {
-            for (int x = 0; x < cellsX; x++)
+            for (int x = 0; x < cells; x++)
             {
                 var v00 = vertices[x, z];
                 var v10 = vertices[x + 1, z];
@@ -99,10 +90,10 @@ public sealed class Terrain
 
     public float GetHeight(float worldX, float worldZ)
     {
-        float gridX = (worldX + halfWidth) / cellSize;
-        float gridZ = (worldZ + halfDepth) / cellSize;
+        float gridX = (worldX + halfSize) / cellSize;
+        float gridZ = (worldZ + halfSize) / cellSize;
 
-        if (gridX < 0 || gridZ < 0 || gridX >= cellsX || gridZ >= cellsZ)
+        if (gridX < 0 || gridZ < 0 || gridX >= cells || gridZ >= cells)
             return 0f;
 
         int x0 = (int)MathF.Floor(gridX);

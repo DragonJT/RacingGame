@@ -41,8 +41,6 @@ public sealed class ModellingFace
         return Vector3.Normalize(normal);
     }
 
-    public ModellingFace Invert => new ([.. Vertices.Reverse()], Color);
-
     public Vector3 GetCenter()
     {
         Vector3 sum = Vector3.Zero;

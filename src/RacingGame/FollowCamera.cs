@@ -2,10 +2,10 @@ using System.Numerics;
 
 public sealed class FollowCamera
 {
-    public Vector3 Offset = new(0, 3.0f, -6.0f);
+    public Vector3 Offset = new(0, 5.0f, -10.0f);
     public Vector3 LookAtOffset = new(0, 1.0f, 0);
 
-    public float MinimumHeightAboveGround = 1.5f;
+    public float MinimumHeightAboveGround = 2f;
 
     public Matrix4x4 GetViewMatrix(CarController car, Ground ground)
     {

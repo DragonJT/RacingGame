@@ -10,25 +10,25 @@ public sealed class CarController
     public float Speed => Vector3.Dot(Velocity, GetForward());
     public bool IsDrifting { get; private set; }
 
-    public float Acceleration = 18.0f;
-    public float BrakeAcceleration = 20.0f;
+    public float Acceleration = 20.0f;
+    public float BrakeAcceleration = 25.0f;
 
-    public float MaxForwardSpeed = 38.0f;
-    public float MaxReverseSpeed = -8.0f;
+    public float MaxForwardSpeed = 100.0f;
+    public float MaxReverseSpeed = -10.0f;
 
-    public float TurnSpeed = 2.8f;
+    public float TurnSpeed = 3.5f;
 
     public float Grip = 5f;
     public float DriftGrip = 1f;
 
-    public float Drag = 0.35f;
-    public float RollingResistance = 1.5f;
+    public float Drag = 0.2f;
+    public float RollingResistance = 1f;
 
     public float DriftStartSpeed = 10.0f;
     public float DriftSteerThreshold = 0.75f;
     public float DriftHoldTime = 0.35f;
     public float DriftStopSpeed = 8.0f;
-    public float DriftRecoveryGrip = 4.0f;
+    public float DriftRecoveryGrip = 2.0f;
     private float sharpTurnTimer;
 
     public float WheelBase = 2.4f;

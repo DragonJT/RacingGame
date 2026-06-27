@@ -11,7 +11,7 @@ public sealed class RoadMask
         halfWidth = width * 0.5f;
     }
 
-    public bool IsUnderRoad(float x, float z)
+    public bool IsOnRoad(float x, float z)
     {
         return DistanceToRoad(x, z) <= halfWidth;
     }

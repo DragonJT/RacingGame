@@ -101,12 +101,14 @@ private const string FragmentShaderSource = """
         TrackRenderer = Graphics.CreateRenderer<Vertex>();
         var random = new Random(12345);
         var randomTrack = RandomTrack.Create(100, random, 10, 20, 10, 30, 90);
-        Terrain = new(200, 200, 10, 250, random.Next());
+        Terrain = new(200, 10, 250, random.Next());
         var track = new Track(8, 20, randomTrack);
         var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, Terrain);
 
-        var terrainMesh = Terrain.GenerateMesh(new RoadMask(track.BuildTrackCenterline(), 20));
+        var roadMask = new RoadMask(track.BuildTrackCenterline(), 20);
+        var terrainMesh = Terrain.GenerateMesh(roadMask);
         terrainMesh.AddMesh(trackMesh);
+        terrainMesh.AddMesh(Forest.Create(Terrain, roadMask, 10000, Terrain.Size, random));
         ground = new (Terrain, trackMesh);
         TrackRenderer.SetVertices(terrainMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
