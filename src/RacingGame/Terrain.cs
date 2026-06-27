@@ -178,7 +178,7 @@ public sealed class Terrain
             return Color32.Green;
 
         if (height < 100)
-            return Color32.Gray;
+            return Color32.Black;
 
         return Color32.White;
     }

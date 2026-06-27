@@ -243,35 +243,12 @@ public sealed class CarController
         float rightHeight = (hFR + hRR) * 0.5f;
 
         pitchRadians = MathF.Atan2(rearHeight - frontHeight, WheelBase);
-        rollRadians = MathF.Atan2(leftHeight - rightHeight, TrackWidth);
+        rollRadians = MathF.Atan2(rightHeight - leftHeight, TrackWidth);
 
         float averageGroundHeight =
             (hFL + hFR + hRL + hRR) * 0.25f;
 
         float targetY = averageGroundHeight + GroundOffset;
-
-        if (Position.Y <= targetY)
-        {
-            Position = new Vector3(Position.X, targetY, Position.Z);
-            VerticalVelocity = 0f;
-            IsGrounded = true;
-        }
-        else
-        {
-            VerticalVelocity -= Gravity * deltaTime;
-
-            Position += new Vector3(0, VerticalVelocity * deltaTime, 0);
-
-            if (Position.Y <= targetY)
-            {
-                Position = new Vector3(Position.X, targetY, Position.Z);
-                VerticalVelocity = 0f;
-                IsGrounded = true;
-            }
-            else
-            {
-                IsGrounded = false;
-            }
-        }
+        Position = new Vector3(Position.X, targetY, Position.Z);
     }
 }

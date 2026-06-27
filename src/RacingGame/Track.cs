@@ -1,5 +1,5 @@
-
 using System.Numerics;
+using Silk.NET.Input;
 
 public enum TrackCommandType
 {
@@ -37,25 +37,65 @@ public readonly struct TrackCommand
     }
 }
 
-public class Track
+public class TrackPoint
 {
-    TrackCommand[] commands;
+    public readonly Vector3 Position;
+    public readonly int TurnSide;
+    public readonly float TurnRadius;
+    public readonly Vector3 Left;
 
-    public Track(TrackCommand[] commands)
+    public TrackPoint(Vector3 position, int turnSide, float turnRadius, float headingRadians)
     {
+        Position = position;
+        TurnSide = turnSide;
+        TurnRadius = turnRadius;
+        Vector3 tangent = new Vector3(
+            MathF.Sin(headingRadians),
+            0,
+            MathF.Cos(headingRadians)
+        );
+        Left = new Vector3(
+            -tangent.Z,
+            0,
+            tangent.X
+        );
+    }
+}
+
+public sealed class Track
+{
+    private readonly float roadRadius;
+    private readonly float outerRadius;
+    private readonly TrackCommand[] commands;
+    public float PointSpacing = 0.5f;
+
+    public Track(float roadRadius, float outerRadius, TrackCommand[] commands)
+    {
+        this.roadRadius = roadRadius;
+        this.outerRadius = outerRadius;
         this.commands = commands;
     }
 
     public List<Vector3> BuildTrackCenterline()
     {
-        List<Vector3> points = [];
+        List<TrackPoint> points = BuildTrackPoints();
+
+        List<Vector3> centerline = [];
+
+        foreach (var point in points)
+            centerline.Add(point.Position);
+
+        return centerline;
+    }
+
+    public List<TrackPoint> BuildTrackPoints()
+    {
+        List<TrackPoint> points = [];
 
         Vector3 position = Vector3.Zero;
-
-        // Heading 0 means forward along +Z.
         float headingRadians = 0f;
 
-        points.Add(position);
+        points.Add(new TrackPoint(position, 0, float.MaxValue, headingRadians));
 
         foreach (var command in commands)
         {
@@ -63,21 +103,36 @@ public class Track
             {
                 case TrackCommandType.Forward:
                 {
-                    Vector3 dir = DirectionFromHeading(headingRadians);
-                    position += dir * command.Distance;
-                    points.Add(position);
+                    AddStraight(
+                        points, 
+                        ref position, 
+                        ref headingRadians, 
+                        command.Distance
+                    );
                     break;
                 }
 
                 case TrackCommandType.Left:
                 {
-                    AddTurn(points, ref position, ref headingRadians, command.AngleDegrees, command.Distance);
+                    AddTurn(
+                        points,
+                        ref position,
+                        ref headingRadians,
+                        command.AngleDegrees,
+                        command.Distance
+                    );
                     break;
                 }
 
                 case TrackCommandType.Right:
                 {
-                    AddTurn(points, ref position, ref headingRadians, -command.AngleDegrees, command.Distance);
+                    AddTurn(
+                        points,
+                        ref position,
+                        ref headingRadians,
+                        -command.AngleDegrees,
+                        command.Distance
+                    );
                     break;
                 }
             }
@@ -86,27 +141,188 @@ public class Track
         return points;
     }
 
-    private static void AddTurn(
-        List<Vector3> points,
+    private void AddStraight(
+        List<TrackPoint> points,
         ref Vector3 position,
         ref float headingRadians,
-        float angleDegrees,
         float distance)
     {
-        int steps = Math.Max(2, (int)(distance / 1.0f));
-
-        float totalAngleRadians = MathF.PI / 180f * angleDegrees;
-        float stepAngle = totalAngleRadians / steps;
+        int steps = Math.Max(1, (int)MathF.Ceiling(distance / PointSpacing));
         float stepDistance = distance / steps;
 
         for (int i = 0; i < steps; i++)
         {
-            headingRadians += stepAngle;
-
             Vector3 dir = DirectionFromHeading(headingRadians);
             position += dir * stepDistance;
 
-            points.Add(position);
+            points.Add(new TrackPoint(position, 0, float.MaxValue, headingRadians));
+        }
+    }
+
+    private void AddTurn(
+        List<TrackPoint> points,
+        ref Vector3 position,
+        ref float headingRadians,
+        float signedAngleDegrees,
+        float distance)
+    {
+        int steps = Math.Max(6, (int)MathF.Ceiling(distance / PointSpacing));
+
+        float totalAngleRadians = signedAngleDegrees * MathF.PI / 180f;
+        float stepAngle = totalAngleRadians / steps;
+        float stepDistance = distance / steps;
+
+        int turnSide = signedAngleDegrees >= 0f ? 1 : -1;
+
+        float angleRadiansAbs = MathF.Abs(totalAngleRadians);
+
+        float turnRadius = angleRadiansAbs < 0.0001f
+            ? float.MaxValue
+            : distance / angleRadiansAbs;
+
+        for (int i = 0; i < steps; i++)
+        {
+            Vector3 dir = DirectionFromHeading(headingRadians);
+            position += dir * stepDistance;
+            headingRadians += stepAngle;
+            points.Add(new TrackPoint(position, turnSide, turnRadius, headingRadians));
+        }
+    }
+
+    private Vector3 LeftPoint(TrackPoint p1, TrackPoint p2, Terrain terrain, float radius, bool centerHeight)
+    {
+        if(p1.TurnSide == -1 && p1.TurnRadius < radius)
+        {
+            radius = p1.TurnRadius;
+        }
+        if(p2.TurnSide == -1 && p2.TurnRadius < radius)
+        {
+            radius = p2.TurnRadius;
+        }
+        var pos = p1.Position + p1.Left * radius;
+        if (centerHeight)
+        {
+            return new Vector3(pos.X, terrain.GetHeight(p1.Position.X, p1.Position.Z), pos.Z);
+        }
+        return new Vector3(pos.X, terrain.GetHeight(pos.X, pos.Z), pos.Z);
+    }
+
+    private Vector3 RightPoint(TrackPoint p1, TrackPoint p2, Terrain terrain, float radius, bool centerHeight)
+    {
+        if(p1.TurnSide == 1 && p1.TurnRadius < radius)
+        {
+            radius = p1.TurnRadius;
+        }
+        if(p2.TurnSide == 1 && p2.TurnRadius < radius)
+        {
+            radius = p2.TurnRadius;
+        }
+        var pos = p1.Position - p1.Left * radius;
+        if (centerHeight)
+        {
+            return new Vector3(pos.X, terrain.GetHeight(p1.Position.X, p1.Position.Z), pos.Z);
+        }
+        return new Vector3(pos.X, terrain.GetHeight(pos.X, pos.Z), pos.Z);
+    }
+
+    static ModellingVertex GetVertex(List<ModellingVertex> vertices, Vector3 position)
+    {
+        var index = vertices
+            .FindIndex(v=>
+                (new Vector2(v.Position.X, v.Position.Z) - new Vector2(position.X, position.Z))
+                .LengthSquared() < 0.1f);
+        if (index >= 0)
+        {
+            return vertices[index];
+        }
+        var vertex = new ModellingVertex(position);
+        vertices.Add(vertex);
+        return vertex;
+    }
+
+    public ModellingMesh GenerateWithShoulders(
+        Color32 roadColor,
+        Color32 shoulderColor,
+        Terrain terrain)
+    {
+        ModellingMesh mesh = new();
+
+        List<TrackPoint> trackPoints = BuildTrackPoints();
+
+        List<ModellingVertex> leftRoadVerts = [];
+        List<ModellingVertex> rightRoadVerts = [];
+        List<ModellingVertex> leftOuterVerts = [];
+        List<ModellingVertex> rightOuterVerts = [];
+        List<ModellingVertex> vertices = [];
+
+        if (trackPoints.Count < 3)
+            return mesh;
+
+        for (int i = 0; i < trackPoints.Count; i++)
+        {
+            var p1 = trackPoints[i];
+            var p2 = trackPoints[i];
+
+            if(i < trackPoints.Count - 1)
+            {
+                p2 = trackPoints[i+1];
+            }
+
+            leftOuterVerts.Add(GetVertex(vertices, LeftPoint(p1, p2, terrain, outerRadius, false)));
+            rightOuterVerts.Add(GetVertex(vertices, RightPoint(p1, p2, terrain, outerRadius, false)));
+            leftRoadVerts.Add(GetVertex(vertices, LeftPoint(p1, p2, terrain, roadRadius, true)));
+            rightRoadVerts.Add(GetVertex(vertices, RightPoint(p1, p2, terrain, roadRadius, true)));
+        }
+
+        for (int i = 0; i < trackPoints.Count - 1; i++)
+        {
+            // Left shoulder.
+            AddQuad(
+                mesh,
+                leftOuterVerts[i],
+                leftOuterVerts[i + 1],
+                leftRoadVerts[i + 1],
+                leftRoadVerts[i],
+                shoulderColor
+            );
+
+            // Road.
+            AddQuad(
+                mesh,
+                leftRoadVerts[i],
+                leftRoadVerts[i + 1],
+                rightRoadVerts[i + 1],
+                rightRoadVerts[i],
+                roadColor
+            );
+
+            // Right shoulder.
+            AddQuad(
+                mesh,
+                rightRoadVerts[i],
+                rightRoadVerts[i + 1],
+                rightOuterVerts[i + 1],
+                rightOuterVerts[i],
+                shoulderColor
+            );
+        }
+
+        return mesh;
+    }
+
+    private static void AddQuad(
+        ModellingMesh mesh, 
+        ModellingVertex a, 
+        ModellingVertex b, 
+        ModellingVertex c, 
+        ModellingVertex d, 
+        Color32 color)
+    {
+        var verts = new ModellingVertex[]{a,b,c,d};
+        var finalVerts = verts.Distinct().ToArray();
+        if(finalVerts.Length >= 3)
+        {
+            mesh.Faces.Add(new ModellingFace(finalVerts, color));
         }
     }
 
@@ -117,113 +333,5 @@ public class Track
             0,
             MathF.Cos(headingRadians)
         );
-    }
-
-    public ModellingMesh GenerateWithShoulders(
-        float roadWidth,
-        float shoulderWidth,
-        Color32 roadColor,
-        Color32 shoulderColor,
-        Terrain terrain)
-    {
-        ModellingMesh mesh = new();
-
-        List<Vector3> centerPoints = BuildTrackCenterline();
-
-        if (centerPoints.Count < 2)
-            return mesh;
-
-        List<ModellingVertex> leftRoadVerts = [];
-        List<ModellingVertex> rightRoadVerts = [];
-        List<ModellingVertex> leftOuterVerts = [];
-        List<ModellingVertex> rightOuterVerts = [];
-
-        float halfRoad = roadWidth * 0.5f;
-        float halfOuter = halfRoad + shoulderWidth;
-
-        float roadOffset = 0.18f;
-        float shoulderOffset = 0.08f;
-
-        for (int i = 0; i < centerPoints.Count; i++)
-        {
-            Vector3 tangent;
-
-            if (i == 0)
-            {
-                tangent = centerPoints[1] - centerPoints[0];
-            }
-            else if (i == centerPoints.Count - 1)
-            {
-                tangent = centerPoints[i] - centerPoints[i - 1];
-            }
-            else
-            {
-                Vector3 prev = Vector3.Normalize(centerPoints[i] - centerPoints[i - 1]);
-                Vector3 next = Vector3.Normalize(centerPoints[i + 1] - centerPoints[i]);
-
-                tangent = prev + next;
-
-                if (tangent.LengthSquared() < 0.0001f)
-                    tangent = next;
-            }
-
-            tangent = Vector3.Normalize(tangent);
-
-            Vector3 left = new Vector3(-tangent.Z, 0, tangent.X);
-
-            Vector3 center = centerPoints[i];
-
-            float roadHeight =
-                terrain.GetHeight(center.X, center.Z) + roadOffset;
-
-            Vector3 leftRoad = center + left * halfRoad;
-            Vector3 rightRoad = center - left * halfRoad;
-
-            Vector3 leftOuter = center + left * halfOuter;
-            Vector3 rightOuter = center - left * halfOuter;
-
-            leftRoad.Y = roadHeight;
-            rightRoad.Y = roadHeight;
-
-            leftOuter.Y =
-                terrain.GetHeight(leftOuter.X, leftOuter.Z) + shoulderOffset;
-
-            rightOuter.Y =
-                terrain.GetHeight(rightOuter.X, rightOuter.Z) + shoulderOffset;
-
-            leftRoadVerts.Add(new ModellingVertex(leftRoad));
-            rightRoadVerts.Add(new ModellingVertex(rightRoad));
-            leftOuterVerts.Add(new ModellingVertex(leftOuter));
-            rightOuterVerts.Add(new ModellingVertex(rightOuter));
-        }
-
-        for (int i = 0; i < centerPoints.Count - 1; i++)
-        {
-            // Left shoulder
-            mesh.Faces.Add(new ModellingFace([
-                leftOuterVerts[i],
-                leftOuterVerts[i + 1],
-                leftRoadVerts[i + 1],
-                leftRoadVerts[i]
-            ], shoulderColor));
-
-            // Road
-            mesh.Faces.Add(new ModellingFace([
-                leftRoadVerts[i],
-                leftRoadVerts[i + 1],
-                rightRoadVerts[i + 1],
-                rightRoadVerts[i]
-            ], roadColor));
-
-            // Right shoulder
-            mesh.Faces.Add(new ModellingFace([
-                rightRoadVerts[i],
-                rightRoadVerts[i + 1],
-                rightOuterVerts[i + 1],
-                rightOuterVerts[i]
-            ], shoulderColor));
-        }
-
-        return mesh;
     }
 }

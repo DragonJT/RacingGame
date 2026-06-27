@@ -1,6 +1,5 @@
 
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 public sealed class ModellingVertex
 {
@@ -41,6 +40,8 @@ public sealed class ModellingFace
 
         return Vector3.Normalize(normal);
     }
+
+    public ModellingFace Invert => new ([.. Vertices.Reverse()], Color);
 
     public Vector3 GetCenter()
     {

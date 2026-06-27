@@ -100,12 +100,12 @@ private const string FragmentShaderSource = """
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
         TrackRenderer = Graphics.CreateRenderer<Vertex>();
         var random = new Random(12345);
-        var randomTrack = RandomTrack.Create(100, random, minStraight:3, maxStraight:8, maxTurnAngle:90);
-        Terrain = new(100, 100, 20, 400, random.Next());
-        var track = new Track(randomTrack);
-        var trackMesh = track.GenerateWithShoulders(8, 16, Color32.Gray, Color32.Green, Terrain);
+        var randomTrack = RandomTrack.Create(100, random, 10, 20, 10, 30, 90);
+        Terrain = new(200, 200, 10, 250, random.Next());
+        var track = new Track(8, 20, randomTrack);
+        var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, Terrain);
 
-        var terrainMesh = Terrain.GenerateMesh(new RoadMask(track.BuildTrackCenterline(), 32));
+        var terrainMesh = Terrain.GenerateMesh(new RoadMask(track.BuildTrackCenterline(), 20));
         terrainMesh.AddMesh(trackMesh);
         ground = new (Terrain, trackMesh);
         TrackRenderer.SetVertices(terrainMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
@@ -138,7 +138,7 @@ private const string FragmentShaderSource = """
         );
 
         Material.Use();
-        Material.SetVector3("lightPos", new Vector3(20,20,20));
+        Material.SetVector3("lightPos", new Vector3(2000,2000,2000));
         Material.SetVector3("lightColor", new Vector3(1,1,1));
         Material.SetMatrix4("model", Matrix4x4.Identity);
         Material.SetMatrix4("view", View);

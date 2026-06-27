@@ -5,7 +5,6 @@ using Silk.NET.Maths;
 using Silk.NET.Input;
 using System.Runtime.InteropServices;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 public class Material
 {

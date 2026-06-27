@@ -3,11 +3,11 @@ public static class RandomTrack
     public static TrackCommand[] Create(
         int pieces,
         Random random,
-        float minStraight = 8f,
-        float maxStraight = 25f,
-        float minTurnDistance = 8f,
-        float maxTurnDistance = 22f,
-        float maxTurnAngle = 35f)
+        float minStraight,
+        float maxStraight,
+        float minTurnDistance,
+        float maxTurnDistance,
+        float maxTurnAngle)
     {
         List<TrackCommand> commands = [];
 
@@ -28,7 +28,7 @@ public static class RandomTrack
             else
             {
                 float angle = Lerp(5f, maxTurnAngle, random.NextSingle());
-                float distance = Lerp(minTurnDistance, maxTurnDistance, random.NextSingle());
+                float distance = Lerp(minTurnDistance, maxTurnDistance, random.NextSingle()) * angle / 45;
 
                 // Try not to keep turning in the same direction forever.
                 bool turnLeft;
