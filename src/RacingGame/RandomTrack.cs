@@ -2,15 +2,13 @@ public static class RandomTrack
 {
     public static TrackCommand[] Create(
         int pieces,
-        int seed = 12345,
+        Random random,
         float minStraight = 8f,
         float maxStraight = 25f,
         float minTurnDistance = 8f,
         float maxTurnDistance = 22f,
         float maxTurnAngle = 35f)
     {
-        Random random = new(seed);
-
         List<TrackCommand> commands = [];
 
         // Start with a straight so the car has room.

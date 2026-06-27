@@ -197,4 +197,15 @@ public sealed class CarController
             -forward.X
         );
     }
+
+    public void FollowTerrain(Terrain terrain)
+    {
+        float groundY = terrain.GetHeightAt(Position.X, Position.Z);
+
+        Position = new Vector3(
+            Position.X,
+            groundY + 0.25f,
+            Position.Z
+        );
+    }
 }

@@ -20,10 +20,12 @@ public readonly struct Color32
     public static Color32 Black => new(0, 0, 0, 255);
     public static Color32 Red => new(255, 0, 0, 255);
     public static Color32 Green => new(0, 255, 0, 255);
+    public static Color32 DarkGreen => new(0, 100, 0, 255);
     public static Color32 Blue => new(0, 0, 255, 255);
     public static Color32 Orange => new(255, 150, 0, 255);
     public static Color32 SkyBlue => new(0, 150, 255, 255);
     public static Color32 Gray => new(100, 100, 100, 255);
+    public static Color32 Yellow => new(255, 255, 0, 255);
 }
 
 public struct Rectangle

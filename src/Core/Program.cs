@@ -92,14 +92,19 @@ private const string FragmentShaderSource = """
     public readonly CarController CarController;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
+    public readonly Terrain Terrain;
 
     public World()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
         TrackRenderer = Graphics.CreateRenderer<Vertex>();
-        var randomTrack = RandomTrack.Create(100, minStraight:3, maxStraight:8, maxTurnAngle:90);
-        var trackMesh = Track.Create(8, Color32.Gray, randomTrack);
-        TrackRenderer.SetVertices(trackMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+        var random = new Random(12345);
+        var randomTrack = RandomTrack.Create(100, random, minStraight:3, maxStraight:8, maxTurnAngle:90);
+        Terrain = new(100, 100, 20, 400, random.Next());
+        var terrainMesh = Terrain.Mesh;
+        var trackMesh = Track.Create(8, Color32.Gray, Terrain, 0.02f, randomTrack);
+        terrainMesh.AddMesh(trackMesh);
+        TrackRenderer.SetVertices(terrainMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
         var carMesh = Car.Create();
@@ -125,7 +130,7 @@ private const string FragmentShaderSource = """
             Library.DegreesToRadians(60.0f),
             aspect,
             0.1f,
-            100.0f
+            1000.0f
         );
 
         Material.Use();
@@ -163,6 +168,7 @@ private const string FragmentShaderSource = """
             Graphics.Close();
         }
         CarController.Update(deltaTime, throttle, brake, steer);
+        CarController.FollowTerrain(Terrain);
     }
 
     public void Delete()

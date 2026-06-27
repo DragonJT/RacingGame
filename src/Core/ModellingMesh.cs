@@ -123,4 +123,12 @@ public sealed class ModellingMesh
     {
         return new Vertex(v.Position, normal, color);
     }
+
+    public void AddMesh(ModellingMesh other)
+    {
+        foreach (var face in other.Faces)
+        {
+            Faces.Add(face);
+        }
+    }
 }

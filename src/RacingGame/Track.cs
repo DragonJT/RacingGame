@@ -113,7 +113,7 @@ public static class Track
         );
     }
 
-    public static ModellingMesh Create(float roadWidth, Color32 color, params TrackCommand[] commands)
+    public static ModellingMesh Create(float roadWidth, Color32 color, Terrain terrain, float roadOffset, params TrackCommand[] commands)
     {
         ModellingMesh m = new();
 
@@ -155,8 +155,14 @@ public static class Track
             // For a flat XZ track, Y is up.
             Vector3 left = new Vector3(-tangent.Z, 0, tangent.X);
 
-            leftVerts.Add(new ModellingVertex(centerPoints[i] + left * halfWidth));
-            rightVerts.Add(new ModellingVertex(centerPoints[i] - left * halfWidth));
+            Vector3 leftPos = centerPoints[i] + left * halfWidth;
+            Vector3 rightPos = centerPoints[i] - left * halfWidth;
+
+            leftPos.Y = terrain.GetHeightAt(leftPos.X, leftPos.Z) + roadOffset;
+            rightPos.Y = terrain.GetHeightAt(rightPos.X, rightPos.Z) + roadOffset;
+
+            leftVerts.Add(new ModellingVertex(leftPos));
+            rightVerts.Add(new ModellingVertex(rightPos));
         }
 
         for (int i = 0; i < centerPoints.Count - 1; i++)
