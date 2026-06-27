@@ -8,9 +8,10 @@ public sealed class Terrain
     private readonly float halfWidth;
     private readonly float halfDepth;
 
-    private readonly float[,] heights;
+    private readonly float heightScale;
+    private readonly int seed;
 
-    public ModellingMesh Mesh { get; }
+    private readonly float[,] heights;
 
     public Terrain(
         int cellsX,
@@ -26,18 +27,11 @@ public sealed class Terrain
         halfWidth = cellsX * cellSize * 0.5f;
         halfDepth = cellsZ * cellSize * 0.5f;
 
+        this.heightScale = heightScale;
+        this.seed = seed;
         heights = new float[cellsX + 1, cellsZ + 1];
 
-        Mesh = BuildMesh(heightScale, seed);
-    }
-
-    private ModellingMesh BuildMesh(float heightScale, int seed)
-    {
-        ModellingMesh mesh = new();
-
         SmoothNoise noise = new(seed);
-
-        ModellingVertex[,] vertices = new ModellingVertex[cellsX + 1, cellsZ + 1];
 
         for (int z = 0; z <= cellsZ; z++)
         {
@@ -49,7 +43,28 @@ public sealed class Terrain
                 float height = GetGeneratedHeight(worldX, worldZ, noise, heightScale);
 
                 heights[x, z] = height;
-                vertices[x, z] = new ModellingVertex(worldX, height, worldZ);
+            }
+        }
+    }
+
+    public ModellingMesh GenerateMesh(RoadMask roadMask)
+    {
+        ModellingMesh mesh = new();
+        ModellingVertex[,] vertices = new ModellingVertex[cellsX + 1, cellsZ + 1];
+
+        for (int z = 0; z <= cellsZ; z++)
+        {
+            for (int x = 0; x <= cellsX; x++)
+            {
+                float worldX = x * cellSize - halfWidth;
+                float worldZ = z * cellSize - halfDepth;
+
+                var offset = 0;
+                if (roadMask.IsUnderRoad(worldX, worldZ))
+                {
+                    offset = -5;
+                }
+                vertices[x, z] = new ModellingVertex(worldX,  heights[x, z] + offset, worldZ);
             }
         }
 
@@ -82,7 +97,7 @@ public sealed class Terrain
         return mesh;
     }
 
-    public float GetHeightAt(float worldX, float worldZ)
+    public float GetHeight(float worldX, float worldZ)
     {
         float gridX = (worldX + halfWidth) / cellSize;
         float gridZ = (worldZ + halfDepth) / cellSize;
@@ -114,10 +129,10 @@ public sealed class Terrain
     {
         float sampleDistance = cellSize;
 
-        float hL = GetHeightAt(worldX - sampleDistance, worldZ);
-        float hR = GetHeightAt(worldX + sampleDistance, worldZ);
-        float hD = GetHeightAt(worldX, worldZ - sampleDistance);
-        float hU = GetHeightAt(worldX, worldZ + sampleDistance);
+        float hL = GetHeight(worldX - sampleDistance, worldZ);
+        float hR = GetHeight(worldX + sampleDistance, worldZ);
+        float hD = GetHeight(worldX, worldZ - sampleDistance);
+        float hU = GetHeight(worldX, worldZ + sampleDistance);
 
         Vector3 normal = new Vector3(
             hL - hR,
@@ -153,7 +168,6 @@ public sealed class Terrain
 
         return (smallDetails + largeHills + 0.6f) * heightScale;
     }
-
 
     private static Color32 GetTerrainColor(float height)
     {

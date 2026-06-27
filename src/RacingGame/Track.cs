@@ -1,5 +1,4 @@
 
-using System.Drawing;
 using System.Numerics;
 
 public enum TrackCommandType
@@ -38,9 +37,16 @@ public readonly struct TrackCommand
     }
 }
 
-public static class Track
+public class Track
 {
-    private static List<Vector3> BuildTrackCenterline(TrackCommand[] commands)
+    TrackCommand[] commands;
+
+    public Track(TrackCommand[] commands)
+    {
+        this.commands = commands;
+    }
+
+    public List<Vector3> BuildTrackCenterline()
     {
         List<Vector3> points = [];
 
@@ -113,19 +119,30 @@ public static class Track
         );
     }
 
-    public static ModellingMesh Create(float roadWidth, Color32 color, Terrain terrain, float roadOffset, params TrackCommand[] commands)
+    public ModellingMesh GenerateWithShoulders(
+        float roadWidth,
+        float shoulderWidth,
+        Color32 roadColor,
+        Color32 shoulderColor,
+        Terrain terrain)
     {
-        ModellingMesh m = new();
+        ModellingMesh mesh = new();
 
-        List<Vector3> centerPoints = BuildTrackCenterline(commands);
+        List<Vector3> centerPoints = BuildTrackCenterline();
 
         if (centerPoints.Count < 2)
-            return m;
+            return mesh;
 
-        List<ModellingVertex> leftVerts = [];
-        List<ModellingVertex> rightVerts = [];
+        List<ModellingVertex> leftRoadVerts = [];
+        List<ModellingVertex> rightRoadVerts = [];
+        List<ModellingVertex> leftOuterVerts = [];
+        List<ModellingVertex> rightOuterVerts = [];
 
-        float halfWidth = roadWidth * 0.5f;
+        float halfRoad = roadWidth * 0.5f;
+        float halfOuter = halfRoad + shoulderWidth;
+
+        float roadOffset = 0.18f;
+        float shoulderOffset = 0.08f;
 
         for (int i = 0; i < centerPoints.Count; i++)
         {
@@ -152,31 +169,61 @@ public static class Track
 
             tangent = Vector3.Normalize(tangent);
 
-            // For a flat XZ track, Y is up.
             Vector3 left = new Vector3(-tangent.Z, 0, tangent.X);
 
-            Vector3 leftPos = centerPoints[i] + left * halfWidth;
-            Vector3 rightPos = centerPoints[i] - left * halfWidth;
+            Vector3 center = centerPoints[i];
 
-            leftPos.Y = terrain.GetHeightAt(leftPos.X, leftPos.Z) + roadOffset;
-            rightPos.Y = terrain.GetHeightAt(rightPos.X, rightPos.Z) + roadOffset;
+            float roadHeight =
+                terrain.GetHeight(center.X, center.Z) + roadOffset;
 
-            leftVerts.Add(new ModellingVertex(leftPos));
-            rightVerts.Add(new ModellingVertex(rightPos));
+            Vector3 leftRoad = center + left * halfRoad;
+            Vector3 rightRoad = center - left * halfRoad;
+
+            Vector3 leftOuter = center + left * halfOuter;
+            Vector3 rightOuter = center - left * halfOuter;
+
+            leftRoad.Y = roadHeight;
+            rightRoad.Y = roadHeight;
+
+            leftOuter.Y =
+                terrain.GetHeight(leftOuter.X, leftOuter.Z) + shoulderOffset;
+
+            rightOuter.Y =
+                terrain.GetHeight(rightOuter.X, rightOuter.Z) + shoulderOffset;
+
+            leftRoadVerts.Add(new ModellingVertex(leftRoad));
+            rightRoadVerts.Add(new ModellingVertex(rightRoad));
+            leftOuterVerts.Add(new ModellingVertex(leftOuter));
+            rightOuterVerts.Add(new ModellingVertex(rightOuter));
         }
 
         for (int i = 0; i < centerPoints.Count - 1; i++)
         {
-            // Winding order gives upward-facing normals.
-            var face = new ModellingFace([
-                leftVerts[i],
-                leftVerts[i + 1],
-                rightVerts[i + 1],
-                rightVerts[i]
-            ], color);
+            // Left shoulder
+            mesh.Faces.Add(new ModellingFace([
+                leftOuterVerts[i],
+                leftOuterVerts[i + 1],
+                leftRoadVerts[i + 1],
+                leftRoadVerts[i]
+            ], shoulderColor));
 
-            m.Faces.Add(face);
+            // Road
+            mesh.Faces.Add(new ModellingFace([
+                leftRoadVerts[i],
+                leftRoadVerts[i + 1],
+                rightRoadVerts[i + 1],
+                rightRoadVerts[i]
+            ], roadColor));
+
+            // Right shoulder
+            mesh.Faces.Add(new ModellingFace([
+                rightRoadVerts[i],
+                rightRoadVerts[i + 1],
+                rightOuterVerts[i + 1],
+                rightOuterVerts[i]
+            ], shoulderColor));
         }
-        return m;
+
+        return mesh;
     }
 }

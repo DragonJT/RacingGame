@@ -198,14 +198,9 @@ public sealed class CarController
         );
     }
 
-    public void FollowTerrain(Terrain terrain)
+    public void FollowHeight(RoadHeight roadHeight)
     {
-        float groundY = terrain.GetHeightAt(Position.X, Position.Z);
-
-        Position = new Vector3(
-            Position.X,
-            groundY + 0.25f,
-            Position.Z
-        );
+        var groundY = roadHeight.GetHeight(Position.X, Position.Z);
+        Position = new Vector3(Position.X, groundY + 0.25f, Position.Z);
     }
 }
