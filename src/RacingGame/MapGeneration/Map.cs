@@ -1,6 +1,6 @@
 
-
 using System.Runtime.InteropServices;
+using System.Numerics;
 
 public static class SaveLoadData
 {
@@ -120,6 +120,38 @@ public static class SaveLoadData
 
         return cells;
     }
+
+    public static List<CollisionCircle> LoadCollisionTrees(BinaryReader reader)
+    {
+        int count = reader.ReadInt32();
+
+        List<CollisionCircle> collisionTrees = new(count);
+
+        for (int i = 0; i < count; i++)
+        {
+            float x = reader.ReadSingle();
+            float y = reader.ReadSingle();
+            float radius = reader.ReadSingle();
+
+            collisionTrees.Add(new CollisionCircle(
+                new Vector2(x, y),
+                radius
+            ));
+        }
+        return collisionTrees;
+    }
+
+    public static void SaveCollisionTrees(BinaryWriter writer, List<CollisionCircle> treeColliders)
+    {
+        writer.Write(treeColliders.Count);
+
+        foreach (var circle in treeColliders)
+        {
+            writer.Write(circle.Center.X);
+            writer.Write(circle.Center.Y);
+            writer.Write(circle.Radius);
+        }
+    }
 }
 
 public class Map
@@ -130,6 +162,8 @@ public class Map
     public readonly Terrain terrain;
     public readonly Triangle[] trackTriangles;
     public readonly Dictionary<(int, int), Vertex[]> VertexCells = [];
+    public readonly List<CollisionCircle> treeColliders;
+    const float collisionCellSize = 100;
 
     public Map(int seed, int size, int cellSize)
     {
@@ -157,6 +191,7 @@ public class Map
                         terrain = SaveLoadData.LoadTerrain(reader);
                         trackTriangles = SaveLoadData.LoadTrackTriangles(reader);
                         VertexCells = SaveLoadData.LoadVertexCells(reader);
+                        treeColliders = SaveLoadData.LoadCollisionTrees(reader);
                         return;
                     }
                 }
@@ -173,11 +208,12 @@ public class Map
         var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, terrain);
 
         trackTriangles = trackMesh.GetTriangles();
-        var roadMask = new RoadMask(track.BuildTrackCenterline(), 9, 100, 1);
+        var roadMask = new RoadMask(track.BuildTrackCenterline(), 9, collisionCellSize, 1);
         var mesh = terrain.GenerateMesh(roadMask);
         mesh.AddMesh(trackMesh);
         var groundHeight = new GroundHeight(new RoadCollider(trackTriangles), terrain);
-        mesh.AddMesh(Forest.Create(groundHeight, roadMask, Size * Size, terrain.Size, random));
+        treeColliders = [];
+        mesh.AddMesh(Forest.Create(treeColliders, groundHeight, roadMask, Size * Size, terrain.Size, random));
 
         var meshGrid = MeshGrid.FromMesh(mesh, CellSize);
         VertexCells = meshGrid.Cells.ToDictionary(
@@ -198,6 +234,7 @@ public class Map
             SaveLoadData.SaveTerrain(writer, terrain);
             SaveLoadData.SaveTrackTriangles(writer, trackTriangles);
             SaveLoadData.SaveVertexCells(writer, VertexCells);
+            SaveLoadData.SaveCollisionTrees(writer, treeColliders);
         }
 
         if (File.Exists(mapPath))
@@ -214,5 +251,15 @@ public class Map
     {
         var roadCollider = new RoadCollider(trackTriangles);
         return new GroundHeight(roadCollider, terrain);
+    }
+
+    public TreeColliderGrid CreateTreeColliderGrid()
+    {
+        var treeColliderGrid = new TreeColliderGrid(collisionCellSize);
+        foreach(var t in treeColliders)
+        {
+            treeColliderGrid.AddCircle(t);
+        }
+        return treeColliderGrid;
     }
 }

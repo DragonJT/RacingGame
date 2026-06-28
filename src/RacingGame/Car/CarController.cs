@@ -106,6 +106,22 @@ public sealed class CarController
         UpdateGrounding(collisions);
     }
 
+    public CollisionCircle[] GetCollisionCircles()
+    {
+        Vector3 forward = GetForward();
+
+        Vector3 front = Position + forward * 0.9f;
+        Vector3 middle = Position;
+        Vector3 rear = Position - forward * 0.9f;
+
+        return
+        [
+            new CollisionCircle(new Vector2(front.X, front.Z), 0.65f),
+            new CollisionCircle(new Vector2(middle.X, middle.Z), 0.75f),
+            new CollisionCircle(new Vector2(rear.X, rear.Z), 0.65f),
+        ];
+    }
+
     private void UpdateDriftState(float deltaTime, float steer)
     {
         float speedAmount = Velocity.Length();
@@ -250,5 +266,33 @@ public sealed class CarController
 
         float targetY = averageGroundHeight + GroundOffset;
         Position = new Vector3(Position.X, targetY, Position.Z);
+    }
+
+    public void HitTree(CollisionCircle carCircle, CollisionCircle treeCircle)
+    {
+        Vector2 push = carCircle.Center - treeCircle.Center;
+
+        if (push.LengthSquared() < 0.0001f)
+            push = new Vector2(1, 0);
+        else
+            push = Vector2.Normalize(push);
+
+        float distance = Vector2.Distance(carCircle.Center, treeCircle.Center);
+        float overlap = carCircle.Radius + treeCircle.Radius - distance;
+
+        if (overlap <= 0f)
+            return;
+
+        Position += new Vector3(push.X * overlap, 0, push.Y * overlap);
+
+        Vector3 push3 = new(push.X, 0, push.Y);
+
+        float speedIntoTree = Vector3.Dot(Velocity, -push3);
+
+        if (speedIntoTree > 0f)
+        {
+            Velocity += push3 * speedIntoTree * 1.25f;
+            Velocity *= 0.35f;
+        }
     }
 }

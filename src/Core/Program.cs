@@ -133,15 +133,6 @@ public class CellRenderers
         }
     }
 
-    private Vector3 GetCellCenter((int x, int z) cell)
-    {
-        return new Vector3(
-            (cell.x + 0.5f) * CellSize,
-            0,
-            (cell.z + 0.5f) * CellSize
-        );
-    }
-
     public void Delete()
     {
         foreach (var kv in Renderers)
@@ -215,11 +206,12 @@ public class World
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
     public readonly GroundHeight GroundHeight;
+    public readonly TreeColliderGrid TreeColliders;
 
     public World()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
-        var map = new Map(12345, 2000, 2000);
+        var map = new Map(4578, 1000, 2000);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
         var carMesh = Car.Create();
@@ -229,6 +221,7 @@ public class World
         FollowCamera = new FollowCamera();
 
         GroundHeight = map.CreateGroundHeight();
+        TreeColliders = map.CreateTreeColliderGrid();
         CellRenderers = new CellRenderers(map.VertexCells, map.CellSize);
     }
 
@@ -292,7 +285,15 @@ public class World
         {
             Graphics.Close();
         }
+
         CarController.Update(GroundHeight, deltaTime, throttle, brake, steer);
+        if (TreeColliders.TryGetCollision(
+            CarController.GetCollisionCircles(),
+            out CollisionCircle carCircle,
+            out CollisionCircle treeCircle))
+        {
+            CarController.HitTree(carCircle, treeCircle);
+        }
     }
 
     public void Delete()

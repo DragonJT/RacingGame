@@ -3,6 +3,7 @@ using System.Numerics;
 public static class Forest
 {
     public static ModellingMesh Create(
+        List<CollisionCircle> collisionTrees,
         GroundHeight collisions,
         RoadMask roadMask,
         int treeCount,
@@ -40,6 +41,7 @@ public static class Forest
             {
                 Console.WriteLine($"Tree {i}/{treeCount}");
             }
+            collisionTrees.Add(new CollisionCircle(new(x,z), trunkWidth/2f));
             mesh.AddMesh(tree);
         }
 
