@@ -36,6 +36,10 @@ public static class Forest
                 leafColor: Color32.DarkGreen
             );
 
+            if(i % 100 == 0)
+            {
+                Console.WriteLine($"Tree {i}/{treeCount}");
+            }
             mesh.AddMesh(tree);
         }
 

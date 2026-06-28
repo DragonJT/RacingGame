@@ -3,24 +3,93 @@ using System.Numerics;
 public sealed class RoadCollider
 {
     private readonly Triangle[] triangles;
+    private readonly Dictionary<(int x, int z), List<Triangle>> cells = [];
 
-    public RoadCollider(Triangle[] triangles)
+    public readonly float CellSize;
+    public readonly int SearchRadiusCells;
+
+    public RoadCollider(
+        Triangle[] triangles,
+        float cellSize = 50f,
+        int searchRadiusCells = 1)
     {
         this.triangles = triangles;
+        CellSize = cellSize;
+        SearchRadiusCells = searchRadiusCells;
+
+        BuildCells();
     }
 
     public bool TryGetHeight(float x, float z, out float height)
     {
         Vector2 point = new(x, z);
 
-        foreach (var t in triangles)
+        int cellX = WorldToCell(x);
+        int cellZ = WorldToCell(z);
+
+        for (int dz = -SearchRadiusCells; dz <= SearchRadiusCells; dz++)
         {
-            if (TryTriangleHeight(point, t.A, t.B, t.C, out height))
-                return true;
+            for (int dx = -SearchRadiusCells; dx <= SearchRadiusCells; dx++)
+            {
+                var key = (cellX + dx, cellZ + dz);
+
+                if (!cells.TryGetValue(key, out var cellTriangles))
+                    continue;
+
+                foreach (var t in cellTriangles)
+                {
+                    if (TryTriangleHeight(point, t.A, t.B, t.C, out height))
+                        return true;
+                }
+            }
         }
 
         height = 0f;
         return false;
+    }
+
+    private void BuildCells()
+    {
+        foreach (var triangle in triangles)
+        {
+            AddTriangleToCells(triangle);
+        }
+    }
+
+    private void AddTriangleToCells(Triangle triangle)
+    {
+        float minX = MathF.Min(triangle.A.X, MathF.Min(triangle.B.X, triangle.C.X));
+        float maxX = MathF.Max(triangle.A.X, MathF.Max(triangle.B.X, triangle.C.X));
+
+        float minZ = MathF.Min(triangle.A.Z, MathF.Min(triangle.B.Z, triangle.C.Z));
+        float maxZ = MathF.Max(triangle.A.Z, MathF.Max(triangle.B.Z, triangle.C.Z));
+
+        int minCellX = WorldToCell(minX);
+        int maxCellX = WorldToCell(maxX);
+
+        int minCellZ = WorldToCell(minZ);
+        int maxCellZ = WorldToCell(maxZ);
+
+        for (int cellZ = minCellZ; cellZ <= maxCellZ; cellZ++)
+        {
+            for (int cellX = minCellX; cellX <= maxCellX; cellX++)
+            {
+                var key = (cellX, cellZ);
+
+                if (!cells.TryGetValue(key, out var list))
+                {
+                    list = [];
+                    cells.Add(key, list);
+                }
+
+                list.Add(triangle);
+            }
+        }
+    }
+
+    private int WorldToCell(float value)
+    {
+        return (int)MathF.Floor(value / CellSize);
     }
 
     private static bool TryTriangleHeight(
@@ -39,7 +108,12 @@ public sealed class RoadCollider
             height = 0f;
             return false;
         }
-        height = a.Y * w0 + b.Y * w1 + c.Y * w2;
+
+        height =
+            a.Y * w0 +
+            b.Y * w1 +
+            c.Y * w2;
+
         return true;
     }
 

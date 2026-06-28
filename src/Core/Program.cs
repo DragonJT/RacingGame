@@ -28,6 +28,129 @@ public readonly struct Vertex
     }
 }
 
+public class CellRenderers
+{
+    public readonly Dictionary<(int, int), Renderer<Vertex>> Renderers;
+    public readonly int CellSize;
+
+    public CellRenderers(Dictionary<(int, int), Vertex[]> vertexCells, int cellSize)
+    {
+        CellSize = cellSize;
+        Renderers = [];
+
+        foreach (var kv in vertexCells)
+        {
+            var renderer = Graphics.CreateRenderer<Vertex>();
+            renderer.SetVertices(kv.Value, BufferUsageARB.StaticDraw);
+            Renderers.Add(kv.Key, renderer);
+        }
+    }
+
+    public Rectangle GetCellWorldRect((int x, int z) cell)
+    {
+        return new Rectangle(
+            cell.x * CellSize,
+            cell.z * CellSize,
+            CellSize,
+            CellSize
+        );
+    }
+
+    public bool IsCellInForwardView(
+        (int x, int z) cell,
+        Vector3 cameraPosition,
+        Vector3 cameraForward,
+        float viewDistance,
+        float fovDegrees)
+    {
+        Rectangle rect = GetCellWorldRect(cell);
+
+        Vector2 cameraXZ = new(cameraPosition.X, cameraPosition.Z);
+
+        Vector2 forwardXZ = new(cameraForward.X, cameraForward.Z);
+
+        if (forwardXZ.LengthSquared() < 0.0001f)
+            return false;
+
+        forwardXZ = Vector2.Normalize(forwardXZ);
+
+        Vector2[] points =
+        [
+            new Vector2(rect.X, rect.Y),
+            new Vector2(rect.X + rect.Width, rect.Y),
+            new Vector2(rect.X, rect.Y + rect.Height),
+            new Vector2(rect.X + rect.Width, rect.Y + rect.Height),
+            new Vector2(rect.X + rect.Width * 0.5f, rect.Y + rect.Height * 0.5f)
+        ];
+
+        float viewDistanceSquared = viewDistance * viewDistance;
+        float minDot = MathF.Cos((fovDegrees * 0.5f) * MathF.PI / 180f);
+
+        foreach (var point in points)
+        {
+            Vector2 toPoint = point - cameraXZ;
+
+            float distSq = toPoint.LengthSquared();
+
+            if (distSq > viewDistanceSquared)
+                continue;
+
+            if (rect.Contains(cameraXZ))
+                return true;
+
+            Vector2 direction = Vector2.Normalize(toPoint);
+
+            float dot = Vector2.Dot(forwardXZ, direction);
+
+            if (dot >= minDot)
+                return true;
+        }
+
+        return false;
+    }
+
+    public void RenderAround(
+        Vector3 playerPosition,
+        Vector3 playerForward,
+        float viewDistance,
+        float fieldOfViewDegrees)
+    {
+        playerForward.Y = 0;
+
+        foreach (var kv in Renderers)
+        {
+            if (!IsCellInForwardView(
+                kv.Key,
+                playerPosition,
+                playerForward,
+                viewDistance,
+                fieldOfViewDegrees))
+            {
+                continue;
+            }
+
+            kv.Value.Render();
+        }
+    }
+
+    private Vector3 GetCellCenter((int x, int z) cell)
+    {
+        return new Vector3(
+            (cell.x + 0.5f) * CellSize,
+            0,
+            (cell.z + 0.5f) * CellSize
+        );
+    }
+
+    public void Delete()
+    {
+        foreach (var kv in Renderers)
+        {
+            kv.Value.Delete();
+        }
+    }
+}
+
 public class World
 {
     private const string VertexShaderSource = """
@@ -87,7 +210,7 @@ public class World
     public readonly FollowCamera FollowCamera;
     public readonly Material Material;
     public readonly Renderer<Vertex> CarRenderer;
-    public readonly Renderer<Vertex> MapRenderer;
+    public readonly CellRenderers CellRenderers;
     public readonly CarController CarController;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
@@ -96,8 +219,7 @@ public class World
     public World()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
-        MapRenderer = Graphics.CreateRenderer<Vertex>();
-        var map = new Map(1234, 200);
+        var map = new Map(12345, 2000, 2000);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
         var carMesh = Car.Create();
@@ -107,7 +229,7 @@ public class World
         FollowCamera = new FollowCamera();
 
         Collisions = map.CreateCollisions();
-        MapRenderer.SetVertices(map.vertexData, BufferUsageARB.StaticDraw);
+        CellRenderers = new CellRenderers(map.VertexCells, map.CellSize);
     }
 
     public void Render()
@@ -121,12 +243,12 @@ public class World
         View = FollowCamera.GetViewMatrix(CarController, Collisions);
 
         float aspect = windowSize.X/ (float)windowSize.Y;
-
+        float fov = 60;
         Projection = Matrix4x4.CreatePerspectiveFieldOfView(
-            Library.DegreesToRadians(60.0f),
+            Library.DegreesToRadians(fov),
             aspect,
             0.1f,
-            1000.0f
+            4000.0f
         );
 
         Material.Use();
@@ -135,7 +257,14 @@ public class World
         Material.SetMatrix4("model", Matrix4x4.Identity);
         Material.SetMatrix4("view", View);
         Material.SetMatrix4("projection", Projection);
-        MapRenderer.Render();
+
+        Material.SetMatrix4("model", Matrix4x4.Identity);
+        CellRenderers.RenderAround(
+            CarController.Position,
+            CarController.GetForward(),
+            4000f,
+            fov
+        );
 
         Material.SetMatrix4("model", CarController.ModelMatrix);
         CarRenderer.Render();
@@ -169,7 +298,7 @@ public class World
     public void Delete()
     {
         Material.Delete();
-        MapRenderer.Delete();
+        CellRenderers.Delete();
         CarRenderer.Delete();
     }
 }

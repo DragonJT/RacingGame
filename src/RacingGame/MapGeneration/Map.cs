@@ -85,20 +85,57 @@ public static class SaveLoadData
 
         return vertices;
     }
+
+    public static void SaveVertexCells(
+        BinaryWriter writer,
+        Dictionary<(int x, int z), Vertex[]> cells)
+    {
+        writer.Write(cells.Count);
+
+        foreach (var pair in cells)
+        {
+            writer.Write(pair.Key.x);
+            writer.Write(pair.Key.z);
+
+            SaveVertexData(writer, pair.Value);
+        }
+    }
+
+    public static Dictionary<(int x, int z), Vertex[]> LoadVertexCells(
+        BinaryReader reader)
+    {
+        int cellCount = reader.ReadInt32();
+
+        Dictionary<(int x, int z), Vertex[]> cells = new(cellCount);
+
+        for (int i = 0; i < cellCount; i++)
+        {
+            int x = reader.ReadInt32();
+            int z = reader.ReadInt32();
+
+            Vertex[] vertices = LoadVertexData(reader);
+
+            cells.Add((x, z), vertices);
+        }
+
+        return cells;
+    }
 }
 
 public class Map
 {
-    public int seed;
-    public int size;
-    public Terrain terrain;
-    public Triangle[] trackTriangles;
-    public Vertex[] vertexData;
+    public readonly int Seed;
+    public readonly int Size;
+    public readonly int CellSize;
+    public readonly Terrain terrain;
+    public readonly Triangle[] trackTriangles;
+    public readonly Dictionary<(int, int), Vertex[]> VertexCells = [];
 
-    public Map(int seed, int size)
+    public Map(int seed, int size, int cellSize)
     {
-        this.seed = seed;
-        this.size = size;
+        Seed = seed;
+        Size = size;
+        CellSize = cellSize;
 
         if(File.Exists("map.bin"))
         {
@@ -109,39 +146,43 @@ public class Map
                 {
                     var readSeed = reader.ReadInt32();
                     var readSize = reader.ReadInt32();
-                    if(readSize != size || readSeed != seed)
+                    var readCellSize = reader.ReadInt32();
+                    if(readSize != Size || readSeed != Seed || readCellSize != CellSize)
                     {
-                        Console.WriteLine($"Map file has different seed or size. Expected seed: {seed}, size: {size}");
+                        Console.WriteLine($"Map file has different seed, size, or cell size. {Seed}, {Size}, {CellSize}");
                         File.Delete("map.bin");
                     }
                     else
                     {
                         terrain = SaveLoadData.LoadTerrain(reader);
                         trackTriangles = SaveLoadData.LoadTrackTriangles(reader);
-                        vertexData = SaveLoadData.LoadVertexData(reader);
-                        Console.WriteLine($"Map loaded with seed: {seed}, size: {size}, vertices: {vertexData.Length}");
+                        VertexCells = SaveLoadData.LoadVertexCells(reader);
                         return;
                     }
                 }
             }
         }
 
-        Console.WriteLine($"Generating map with seed: {seed}, size: {size}");
-        var random = new Random(seed);
-        var randomTrack = RandomTrack.Create(size/3, random, 10, 20, 10, 30, 90);
-        terrain = new Terrain(size, 10, 250, random.Next());
+        Console.WriteLine($"Generating map with seed: {Seed}, size: {Size}, cell size: {CellSize}");
+        var random = new Random(Seed);
+        var randomTrack = RandomTrack.Create(Size/3, random, 10, 20, 10, 30, 90);
+
+        terrain = new Terrain(Size, 10, 250, random.Next());
+
         var track = new Track(8, 20, randomTrack);
         var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, terrain);
 
         trackTriangles = trackMesh.GetTriangles();
-        var roadMask = new RoadMask(track.BuildTrackCenterline(), 20);
+        var roadMask = new RoadMask(track.BuildTrackCenterline(), 20, 100, 1);
         var mesh = terrain.GenerateMesh(roadMask);
         mesh.AddMesh(trackMesh);
-        mesh.AddMesh(Forest.Create(terrain, roadMask, 10000, terrain.Size, random));
-        vertexData = mesh.GetVertexData();
+        mesh.AddMesh(Forest.Create(terrain, roadMask, Size * Size, terrain.Size, random));
 
-        Console.WriteLine($"Map generated with {vertexData.Length} vertices");
-
+        var meshGrid = MeshGrid.FromMesh(mesh, CellSize);
+        VertexCells = meshGrid.Cells.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Mesh.GetVertexData()
+        );
         Console.WriteLine("Saving map to map.bin");
 
         const string mapPath = "map.bin";
@@ -150,12 +191,12 @@ public class Map
         using (var stream = File.Create(tempPath))
         using (var writer = new BinaryWriter(stream))
         {
-            writer.Write(this.seed);
-            writer.Write(this.size);
-
+            writer.Write(Seed);
+            writer.Write(Size);
+            writer.Write(CellSize);
             SaveLoadData.SaveTerrain(writer, terrain);
             SaveLoadData.SaveTrackTriangles(writer, trackTriangles);
-            SaveLoadData.SaveVertexData(writer, vertexData);
+            SaveLoadData.SaveVertexCells(writer, VertexCells);
         }
 
         if (File.Exists(mapPath))
