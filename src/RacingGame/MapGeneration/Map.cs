@@ -173,10 +173,11 @@ public class Map
         var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, terrain);
 
         trackTriangles = trackMesh.GetTriangles();
-        var roadMask = new RoadMask(track.BuildTrackCenterline(), 20, 100, 1);
+        var roadMask = new RoadMask(track.BuildTrackCenterline(), 9, 100, 1);
         var mesh = terrain.GenerateMesh(roadMask);
         mesh.AddMesh(trackMesh);
-        mesh.AddMesh(Forest.Create(terrain, roadMask, Size * Size, terrain.Size, random));
+        var groundHeight = new GroundHeight(new RoadCollider(trackTriangles), terrain);
+        mesh.AddMesh(Forest.Create(groundHeight, roadMask, Size * Size, terrain.Size, random));
 
         var meshGrid = MeshGrid.FromMesh(mesh, CellSize);
         VertexCells = meshGrid.Cells.ToDictionary(
@@ -209,9 +210,9 @@ public class Map
         Console.WriteLine("Map saved");
     }
 
-    public Collisions CreateCollisions()
+    public GroundHeight CreateGroundHeight()
     {
         var roadCollider = new RoadCollider(trackTriangles);
-        return new Collisions(roadCollider, terrain);
+        return new GroundHeight(roadCollider, terrain);
     }
 }

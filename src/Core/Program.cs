@@ -214,7 +214,7 @@ public class World
     public readonly CarController CarController;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
-    public readonly Collisions Collisions;
+    public readonly GroundHeight GroundHeight;
 
     public World()
     {
@@ -228,7 +228,7 @@ public class World
         CarController = new CarController();
         FollowCamera = new FollowCamera();
 
-        Collisions = map.CreateCollisions();
+        GroundHeight = map.CreateGroundHeight();
         CellRenderers = new CellRenderers(map.VertexCells, map.CellSize);
     }
 
@@ -240,7 +240,7 @@ public class World
         Graphics.Viewport(viewport);
         Graphics.Enable(EnableCap.DepthTest);
 
-        View = FollowCamera.GetViewMatrix(CarController, Collisions);
+        View = FollowCamera.GetViewMatrix(CarController, GroundHeight);
 
         float aspect = windowSize.X/ (float)windowSize.Y;
         float fov = 60;
@@ -292,7 +292,7 @@ public class World
         {
             Graphics.Close();
         }
-        CarController.Update(Collisions, deltaTime, throttle, brake, steer);
+        CarController.Update(GroundHeight, deltaTime, throttle, brake, steer);
     }
 
     public void Delete()

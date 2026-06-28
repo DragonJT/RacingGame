@@ -55,7 +55,7 @@ public sealed class CarController
         }
     }
     public void Update(
-        Collisions collisions,
+        GroundHeight collisions,
         float deltaTime,
         float throttle,
         float brake,
@@ -212,7 +212,7 @@ public sealed class CarController
         );
     }
 
-    private void UpdateGrounding(Collisions collisions)
+    private void UpdateGrounding(GroundHeight collisions)
     {
         Vector3 forward = GetForward();
         Vector3 right = GetRight();

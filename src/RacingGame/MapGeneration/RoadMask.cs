@@ -3,7 +3,7 @@ using System.Numerics;
 public sealed class RoadMask
 {
     private readonly List<Vector3> points;
-    private readonly float halfWidth;
+    private readonly float radius;
     private readonly float cellSize;
     private readonly int searchRadiusCells;
 
@@ -11,12 +11,12 @@ public sealed class RoadMask
 
     public RoadMask(
         List<Vector3> points,
-        float width,
+        float radius,
         float cellSize,
         int searchRadiusCells = 1)
     {
         this.points = points;
-        halfWidth = width * 0.5f;
+        this.radius = radius;
         this.cellSize = cellSize;
         this.searchRadiusCells = searchRadiusCells;
 
@@ -25,7 +25,7 @@ public sealed class RoadMask
 
     public bool IsOnRoad(float x, float z)
     {
-        return DistanceToRoad(x, z) <= halfWidth;
+        return DistanceToRoad(x, z) <= radius;
     }
 
     private float DistanceToRoad(float x, float z)
@@ -72,11 +72,11 @@ public sealed class RoadMask
 
             RoadSegment segment = new(a, b);
 
-            int minX = WorldToCell(MathF.Min(a.X, b.X) - halfWidth);
-            int maxX = WorldToCell(MathF.Max(a.X, b.X) + halfWidth);
+            int minX = WorldToCell(MathF.Min(a.X, b.X) - radius);
+            int maxX = WorldToCell(MathF.Max(a.X, b.X) + radius);
 
-            int minZ = WorldToCell(MathF.Min(a.Y, b.Y) - halfWidth);
-            int maxZ = WorldToCell(MathF.Max(a.Y, b.Y) + halfWidth);
+            int minZ = WorldToCell(MathF.Min(a.Y, b.Y) - radius);
+            int maxZ = WorldToCell(MathF.Max(a.Y, b.Y) + radius);
 
             for (int z = minZ; z <= maxZ; z++)
             {

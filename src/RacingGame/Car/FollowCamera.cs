@@ -5,7 +5,7 @@ public sealed class FollowCamera
     public Vector3 Offset = new(0, 3.5f, -4.0f);
     public Vector3 LookAtOffset = new(0, 3f, 1.0f);
 
-    public Matrix4x4 GetViewMatrix(CarController car, Collisions collisions)
+    public Matrix4x4 GetViewMatrix(CarController car, GroundHeight collisions)
     {
         Vector3 carForward = car.GetForward();
 

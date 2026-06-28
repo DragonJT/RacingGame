@@ -1,10 +1,10 @@
 
-public class Collisions
+public class GroundHeight
 {
     RoadCollider roadCollider;
     Terrain terrain;
 
-    public Collisions(RoadCollider roadCollider, Terrain terrain)
+    public GroundHeight(RoadCollider roadCollider, Terrain terrain)
     {
         this.roadCollider = roadCollider;
         this.terrain = terrain;

@@ -3,7 +3,7 @@ using System.Numerics;
 public static class Forest
 {
     public static ModellingMesh Create(
-        Terrain terrain,
+        GroundHeight collisions,
         RoadMask roadMask,
         int treeCount,
         float areaSize,
@@ -21,7 +21,7 @@ public static class Forest
                 continue;
             }
 
-            float y = terrain.GetHeight(x, z);
+            float y = collisions.GetHeight(x, z);
 
             float height = RandomRange(random, 5, 20);
             float trunkWidth = RandomRange(random, 0.6f, 1.4f);
