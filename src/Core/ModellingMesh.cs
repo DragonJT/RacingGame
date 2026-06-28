@@ -91,7 +91,7 @@ public sealed class ModellingMesh
         Faces.Add(new ModellingFace([v010, v011, v111, v110], color)); // top
     }
 
-    public Vertex[] GetRenderVertices()
+    public Vertex[] GetVertexData()
     {
         List<Vertex> vertices = [];
         foreach (var face in Faces)
@@ -129,5 +129,24 @@ public sealed class ModellingMesh
         {
             Faces.Add(face);
         }
+    }
+
+    public Triangle[] GetTriangles()
+    {
+        List<Triangle> triangles = [];
+        foreach (var face in Faces)
+        {
+            if (face.Vertices.Length < 3)
+                continue;
+            for (int i = 1; i < face.Vertices.Length - 1; i++)
+            {
+                Triangle triangle = new(
+                    face.Vertices[0].Position,
+                    face.Vertices[i].Position,
+                    face.Vertices[i + 1].Position);
+                triangles.Add(triangle);
+            }
+        }
+        return [.. triangles];
     }
 }

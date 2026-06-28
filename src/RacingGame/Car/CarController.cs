@@ -55,7 +55,7 @@ public sealed class CarController
         }
     }
     public void Update(
-        Ground ground,
+        Collisions collisions,
         float deltaTime,
         float throttle,
         float brake,
@@ -103,7 +103,7 @@ public sealed class CarController
         ApplyDrag(deltaTime);
 
         Position += Velocity * deltaTime;
-        UpdateGrounding(deltaTime, ground);
+        UpdateGrounding(collisions);
     }
 
     private void UpdateDriftState(float deltaTime, float steer)
@@ -212,7 +212,7 @@ public sealed class CarController
         );
     }
 
-    private void UpdateGrounding(float deltaTime, Ground ground)
+    private void UpdateGrounding(Collisions collisions)
     {
         Vector3 forward = GetForward();
         Vector3 right = GetRight();
@@ -232,10 +232,10 @@ public sealed class CarController
         Vector3 rearRight =
             Position - forward * halfWheelBase + right * halfTrackWidth;
 
-        float hFL = ground.GetHeight(frontLeft.X, frontLeft.Z);
-        float hFR = ground.GetHeight(frontRight.X, frontRight.Z);
-        float hRL = ground.GetHeight(rearLeft.X, rearLeft.Z);
-        float hRR = ground.GetHeight(rearRight.X, rearRight.Z);
+        float hFL = collisions.GetHeight(frontLeft.X, frontLeft.Z);
+        float hFR = collisions.GetHeight(frontRight.X, frontRight.Z);
+        float hRL = collisions.GetHeight(rearLeft.X, rearLeft.Z);
+        float hRR = collisions.GetHeight(rearRight.X, rearRight.Z);
 
         float frontHeight = (hFL + hFR) * 0.5f;
         float rearHeight = (hRL + hRR) * 0.5f;

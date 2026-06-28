@@ -2,12 +2,20 @@ using System.Numerics;
 
 public sealed class Terrain
 {
-    private readonly int cells;
-    private readonly float cellSize;
+    public readonly int VertexCount;
+    public readonly float CellSize;
     private readonly float halfSize;
-    public float Size => cells * cellSize;
+    public float Size => VertexCount * CellSize;
 
-    private readonly float[,] heights;
+    public readonly float[,] Heights;
+
+    public Terrain(float[,] heights, float cellSize)
+    {
+        Heights = heights;
+        CellSize = cellSize;
+        VertexCount = heights.GetLength(0) - 1;
+        halfSize = VertexCount * CellSize * 0.5f;
+    }
 
     public Terrain(
         int cells,
@@ -15,25 +23,25 @@ public sealed class Terrain
         float heightScale,
         int seed)
     {
-        this.cells = cells;
-        this.cellSize = cellSize;
+        VertexCount = cells;
+        CellSize = cellSize;
 
-        halfSize = cells * cellSize * 0.5f;
+        halfSize = VertexCount * CellSize * 0.5f;
 
-        heights = new float[cells + 1, cells + 1];
+        Heights = new float[VertexCount, VertexCount];
 
         SmoothNoise noise = new(seed);
 
-        for (int z = 0; z <= cells; z++)
+        for (int z = 0; z < VertexCount; z++)
         {
-            for (int x = 0; x <= cells; x++)
+            for (int x = 0; x < VertexCount; x++)
             {
-                float worldX = x * cellSize - halfSize;
-                float worldZ = z * cellSize - halfSize;
+                float worldX = x * CellSize - halfSize;
+                float worldZ = z * CellSize - halfSize;
 
                 float height = GetGeneratedHeight(worldX, worldZ, noise, heightScale);
 
-                heights[x, z] = height;
+                Heights[x, z] = height;
             }
         }
     }
@@ -41,27 +49,27 @@ public sealed class Terrain
     public ModellingMesh GenerateMesh(RoadMask roadMask)
     {
         ModellingMesh mesh = new();
-        ModellingVertex[,] vertices = new ModellingVertex[cells + 1, cells + 1];
+        ModellingVertex[,] vertices = new ModellingVertex[VertexCount, VertexCount];
 
-        for (int z = 0; z <= cells; z++)
+        for (int z = 0; z < VertexCount; z++)
         {
-            for (int x = 0; x <= cells; x++)
+            for (int x = 0; x < VertexCount; x++)
             {
-                float worldX = x * cellSize - halfSize;
-                float worldZ = z * cellSize - halfSize;
+                float worldX = x * CellSize - halfSize;
+                float worldZ = z * CellSize - halfSize;
 
                 var offset = 0;
                 if (roadMask.IsOnRoad(worldX, worldZ))
                 {
                     offset = -5;
                 }
-                vertices[x, z] = new ModellingVertex(worldX,  heights[x, z] + offset, worldZ);
+                vertices[x, z] = new ModellingVertex(worldX,  Heights[x, z] + offset, worldZ);
             }
         }
 
-        for (int z = 0; z < cells; z++)
+        for (int z = 0; z < VertexCount - 1; z++)
         {
-            for (int x = 0; x < cells; x++)
+            for (int x = 0; x < VertexCount - 1; x++)
             {
                 var v00 = vertices[x, z];
                 var v10 = vertices[x + 1, z];
@@ -90,10 +98,10 @@ public sealed class Terrain
 
     public float GetHeight(float worldX, float worldZ)
     {
-        float gridX = (worldX + halfSize) / cellSize;
-        float gridZ = (worldZ + halfSize) / cellSize;
+        float gridX = (worldX + halfSize) / CellSize;
+        float gridZ = (worldZ + halfSize) / CellSize;
 
-        if (gridX < 0 || gridZ < 0 || gridX >= cells || gridZ >= cells)
+        if (gridX < 0 || gridZ < 0 || gridX >= VertexCount - 1 || gridZ >= VertexCount - 1)
             return 0f;
 
         int x0 = (int)MathF.Floor(gridX);
@@ -105,10 +113,10 @@ public sealed class Terrain
         float tx = gridX - x0;
         float tz = gridZ - z0;
 
-        float h00 = heights[x0, z0];
-        float h10 = heights[x1, z0];
-        float h01 = heights[x0, z1];
-        float h11 = heights[x1, z1];
+        float h00 = Heights[x0, z0];
+        float h10 = Heights[x1, z0];
+        float h01 = Heights[x0, z1];
+        float h11 = Heights[x1, z1];
 
         float hx0 = Lerp(h00, h10, tx);
         float hx1 = Lerp(h01, h11, tx);
@@ -118,7 +126,7 @@ public sealed class Terrain
 
     public Vector3 GetNormalAt(float worldX, float worldZ)
     {
-        float sampleDistance = cellSize;
+        float sampleDistance = CellSize;
 
         float hL = GetHeight(worldX - sampleDistance, worldZ);
         float hR = GetHeight(worldX + sampleDistance, worldZ);

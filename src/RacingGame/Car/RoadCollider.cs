@@ -1,43 +1,21 @@
 using System.Numerics;
-using System.Security.Cryptography;
 
-public sealed class Ground
+public sealed class RoadCollider
 {
-    private readonly Terrain terrain;
-    private readonly List<ModellingFace> faces;
+    private readonly Triangle[] triangles;
 
-    public Ground(Terrain terrain, ModellingMesh roadMesh)
+    public RoadCollider(Triangle[] triangles)
     {
-        this.terrain = terrain;
-        faces = roadMesh.Faces;
+        this.triangles = triangles;
     }
 
-    public float GetHeight(float x, float z)
-    {
-        if(TryGetHeight(x, z, out var height))
-        {
-            return height;
-        }
-        return terrain.GetHeight(x, z);
-    }
-
-    private bool TryGetHeight(float x, float z, out float height)
+    public bool TryGetHeight(float x, float z, out float height)
     {
         Vector2 point = new(x, z);
 
-        foreach (var face in faces)
+        foreach (var t in triangles)
         {
-            var verts = face.Vertices;
-
-            if (verts.Length < 3)
-                continue;
-
-            // Your road faces are quads, so split each quad into 2 triangles.
-            if (TryTriangleHeight(point, verts[0], verts[1], verts[2], out height))
-                return true;
-
-            if (verts.Length >= 4 &&
-                TryTriangleHeight(point, verts[0], verts[2], verts[3], out height))
+            if (TryTriangleHeight(point, t.A, t.B, t.C, out height))
                 return true;
         }
 
@@ -47,26 +25,21 @@ public sealed class Ground
 
     private static bool TryTriangleHeight(
         Vector2 point,
-        ModellingVertex a,
-        ModellingVertex b,
-        ModellingVertex c,
+        Vector3 a,
+        Vector3 b,
+        Vector3 c,
         out float height)
     {
-        Vector2 p0 = new(a.Position.X, a.Position.Z);
-        Vector2 p1 = new(b.Position.X, b.Position.Z);
-        Vector2 p2 = new(c.Position.X, c.Position.Z);
+        Vector2 p0 = new(a.X, a.Z);
+        Vector2 p1 = new(b.X, b.Z);
+        Vector2 p2 = new(c.X, c.Z);
 
         if (!PointInTriangle(point, p0, p1, p2, out float w0, out float w1, out float w2))
         {
             height = 0f;
             return false;
         }
-
-        height =
-            a.Position.Y * w0 +
-            b.Position.Y * w1 +
-            c.Position.Y * w2;
-
+        height = a.Y * w0 + b.Y * w1 + c.Y * w2;
         return true;
     }
 

@@ -1,7 +1,6 @@
 ﻿using System.Numerics;
-using Silk.NET.Maths;
-using Silk.NET.OpenGL;
 using System.Runtime.InteropServices;
+using Silk.NET.OpenGL;
 using Silk.NET.Input;
 
 [StructLayout(LayoutKind.Sequential)]
@@ -56,7 +55,7 @@ public class World
     }
     """;
 
-private const string FragmentShaderSource = """
+    private const string FragmentShaderSource = """
     #version 330 core
 
     in vec3 FragPos;
@@ -88,36 +87,27 @@ private const string FragmentShaderSource = """
     public readonly FollowCamera FollowCamera;
     public readonly Material Material;
     public readonly Renderer<Vertex> CarRenderer;
-    public readonly Renderer<Vertex> TrackRenderer;
+    public readonly Renderer<Vertex> MapRenderer;
     public readonly CarController CarController;
     public Matrix4x4 View {get; private set;}
     public Matrix4x4 Projection {get; private set;}
-    public readonly Terrain Terrain;
-    private readonly Ground ground;
+    public readonly Collisions Collisions;
 
     public World()
     {
         Material = Graphics.CreateMaterial(VertexShaderSource, FragmentShaderSource);
-        TrackRenderer = Graphics.CreateRenderer<Vertex>();
-        var random = new Random(12345);
-        var randomTrack = RandomTrack.Create(100, random, 10, 20, 10, 30, 90);
-        Terrain = new(200, 10, 250, random.Next());
-        var track = new Track(8, 20, randomTrack);
-        var trackMesh = track.GenerateWithShoulders(Color32.Gray, Color32.Green, Terrain);
-
-        var roadMask = new RoadMask(track.BuildTrackCenterline(), 20);
-        var terrainMesh = Terrain.GenerateMesh(roadMask);
-        terrainMesh.AddMesh(trackMesh);
-        terrainMesh.AddMesh(Forest.Create(Terrain, roadMask, 10000, Terrain.Size, random));
-        ground = new (Terrain, trackMesh);
-        TrackRenderer.SetVertices(terrainMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+        MapRenderer = Graphics.CreateRenderer<Vertex>();
+        var map = new Map(1234, 200);
 
         CarRenderer = Graphics.CreateRenderer<Vertex>();
         var carMesh = Car.Create();
-        CarRenderer.SetVertices(carMesh.GetRenderVertices(), BufferUsageARB.StaticDraw);
+        CarRenderer.SetVertices(carMesh.GetVertexData(), BufferUsageARB.StaticDraw);
 
         CarController = new CarController();
         FollowCamera = new FollowCamera();
+
+        Collisions = map.CreateCollisions();
+        MapRenderer.SetVertices(map.vertexData, BufferUsageARB.StaticDraw);
     }
 
     public void Render()
@@ -128,7 +118,7 @@ private const string FragmentShaderSource = """
         Graphics.Viewport(viewport);
         Graphics.Enable(EnableCap.DepthTest);
 
-        View = FollowCamera.GetViewMatrix(CarController, ground);
+        View = FollowCamera.GetViewMatrix(CarController, Collisions);
 
         float aspect = windowSize.X/ (float)windowSize.Y;
 
@@ -145,7 +135,7 @@ private const string FragmentShaderSource = """
         Material.SetMatrix4("model", Matrix4x4.Identity);
         Material.SetMatrix4("view", View);
         Material.SetMatrix4("projection", Projection);
-        TrackRenderer.Render();
+        MapRenderer.Render();
 
         Material.SetMatrix4("model", CarController.ModelMatrix);
         CarRenderer.Render();
@@ -173,20 +163,20 @@ private const string FragmentShaderSource = """
         {
             Graphics.Close();
         }
-        CarController.Update(ground, deltaTime, throttle, brake, steer);
+        CarController.Update(Collisions, deltaTime, throttle, brake, steer);
     }
 
     public void Delete()
     {
         Material.Delete();
-        TrackRenderer.Delete();
+        MapRenderer.Delete();
         CarRenderer.Delete();
     }
 }
 
 internal static class Program
 { 
-    static World _modelViewer = null!;
+    static World world = null!;
 
     private static void Main()
     {
@@ -196,18 +186,18 @@ internal static class Program
     private static void OnLoad()
     {        
         Graphics.ClearColor(0.08f, 0.09f, 0.12f, 1.0f);
-        _modelViewer = new();
+        world = new();
     }
 
     private static void OnRender(float deltaTime)
     {
-        _modelViewer.Update(deltaTime);
-        _modelViewer.Render();
+        world.Update(deltaTime);
+        world.Render();
         TextRenderer.Render();
     }
 
     private static void OnClose()
     {
-        _modelViewer.Delete();
+        world.Delete();
     }
 }

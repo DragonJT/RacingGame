@@ -7,7 +7,7 @@ public sealed class FollowCamera
 
     public float MinimumHeightAboveGround = 2f;
 
-    public Matrix4x4 GetViewMatrix(CarController car, Ground ground)
+    public Matrix4x4 GetViewMatrix(CarController car, Collisions collisions)
     {
         Vector3 carForward = car.GetForward();
 
@@ -23,7 +23,7 @@ public sealed class FollowCamera
             Vector3.UnitY * Offset.Y -
             carForward * MathF.Abs(Offset.Z);
 
-        float minimumCameraY = ground.GetHeight(cameraPosition.X, cameraPosition.Z) + MinimumHeightAboveGround;
+        float minimumCameraY = collisions.GetHeight(cameraPosition.X, cameraPosition.Z) + MinimumHeightAboveGround;
 
         if (cameraPosition.Y < minimumCameraY)
         {
